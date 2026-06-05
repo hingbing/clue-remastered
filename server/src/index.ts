@@ -318,6 +318,7 @@ function createPlayer(
     room: "현관",
     pulledBySuggestion: false,
     finalAccused: false,
+    finalAccusation: null,
     hand: [],
     bonusCards: [],
     privateLogs: [],
@@ -558,6 +559,7 @@ io.on("connection", (socket) => {
       player.hand = [];
       player.eliminated = false;
       player.finalAccused = false;
+      player.finalAccusation = null;
       player.failedNoDisproveCount = 0;
       player.leftoverSeen = false;
       player.pulledBySuggestion = false;
@@ -740,6 +742,9 @@ io.on("connection", (socket) => {
     } else {
       room.hasSuggested = true;
     }
+    // 추리 후 더 이상 이동할 수 없도록 reachableTileIds 초기화
+    room.reachableTileIds = [];
+    room.movesLeft = 0;
     //moveSuggestedCharacterToRoom(room, suggestion, p);
     room.lastMessage = `${p.nickname}님의 추리: ${suggestion.suspect}, ${suggestion.weapon}, ${suggestion.room}`;
     addLog(
@@ -863,31 +868,146 @@ io.on("connection", (socket) => {
       return socket.emit("game:error", {
         message: "최종 추리는 한 번만 가능합니다.",
       });
-    if (p.room !== "현관")
+
+    // winnerId가 없으면 (첫 정답) 현관에서만 가능, 있으면 (나머지 플레이어) 위치 무관
+    if (!room.winnerId && p.room !== "현관")
       return socket.emit("game:error", {
         message: "최종 추리는 게임판 중앙 현관에서만 가능합니다.",
       });
+
     p.finalAccused = true;
+    p.finalAccusation = accusation;
     const correct =
       room.solution.suspect === accusation.suspect &&
       room.solution.weapon === accusation.weapon &&
       room.solution.room === accusation.room;
     io.to(room.roomCode).emit("game:accused", { playerId: p.id, accusation });
-    if (correct) {
-      room.status = "finished";
+
+    // 첫 번째 정답인 경우
+    if (correct && !room.winnerId) {
       room.winnerId = p.id;
-      room.lastMessage = `${p.nickname}님이 최종 추리에 성공했습니다.`;
+      room.lastMessage = `${p.nickname}님이 최종 추리에 성공했습니다! 나머지 플레이어들은 순서대로 최종 추리를 진행합니다.`;
+
+      // 나머지 플레이어들에게 최종 추리 기회 제공
+      const remaining = room.players.filter((pl) => pl.id !== p.id);
+      if (remaining.length > 0) {
+        // 다음 플레이어로 턴 변경
+        let nextIndex = (room.currentTurnIndex + 1) % room.players.length;
+        while (room.players[nextIndex].id === p.id) {
+          nextIndex = (nextIndex + 1) % room.players.length;
+        }
+        room.currentTurnIndex = nextIndex;
+        const nextPlayer = room.players[nextIndex];
+        room.lastMessage = `${nextPlayer.nickname}님의 최종 추리 차례입니다. 현재 위치와 상관없이 추리할 수 있습니다.`;
+        io.to(room.roomCode).emit("game:turn-start", {
+          playerId: nextPlayer.id,
+          turnNumber: room.turnNumber,
+        });
+      } else {
+        // 유일한 플레이어인 경우 바로 게임 종료
+        room.status = "finished";
+        io.to(room.roomCode).emit("game:win", {
+          winner: p,
+          solution: room.solution,
+          playerAccusations: room.players.map((pl) => ({
+            id: pl.id,
+            nickname: pl.nickname,
+            finalAccusation: pl.finalAccusation,
+            correct: pl.finalAccusation
+              ? pl.finalAccusation.suspect === room.solution!.suspect &&
+                pl.finalAccusation.weapon === room.solution!.weapon &&
+                pl.finalAccusation.room === room.solution!.room
+              : false,
+          })),
+        });
+      }
+      emitRoom(room);
+      return;
+    }
+
+    // winnerId가 있으면 (나머지 플레이어) 추리 완료 확인
+    if (room.winnerId) {
+      const allDone = room.players.every((pl) => pl.finalAccused);
+      if (allDone) {
+        // 모든 플레이어가 추리 완료
+        room.status = "finished";
+        const winner = room.players.find((pl) => pl.id === room.winnerId);
+        io.to(room.roomCode).emit("game:win", {
+          winner,
+          solution: room.solution,
+          playerAccusations: room.players.map((pl) => ({
+            id: pl.id,
+            nickname: pl.nickname,
+            finalAccusation: pl.finalAccusation,
+            correct: pl.finalAccusation
+              ? pl.finalAccusation.suspect === room.solution!.suspect &&
+                pl.finalAccusation.weapon === room.solution!.weapon &&
+                pl.finalAccusation.room === room.solution!.room
+              : false,
+          })),
+        });
+      } else {
+        // 다음 플레이어로 턴 변경
+        let nextIndex = (room.currentTurnIndex + 1) % room.players.length;
+        while (room.players[nextIndex].finalAccused) {
+          nextIndex = (nextIndex + 1) % room.players.length;
+        }
+        room.currentTurnIndex = nextIndex;
+        const nextPlayer = room.players[nextIndex];
+        room.lastMessage = `${nextPlayer.nickname}님의 최종 추리 차례입니다.`;
+        io.to(room.roomCode).emit("game:turn-start", {
+          playerId: nextPlayer.id,
+          turnNumber: room.turnNumber,
+        });
+      }
+      emitRoom(room);
+      return;
+    }
+
+    // winnerId가 없고 정답이 아닌 경우 (이전 코드처럼 탈락)
+    p.eliminated = true;
+    room.lastMessage = `${p.nickname}님이 최종 추리에 실패하여 탈락했습니다. 카드는 공개하지 않고 증명에는 계속 참여합니다.`;
+    io.to(room.roomCode).emit("game:eliminated", { playerId: p.id });
+
+    // 다음 활성 플레이어 찾기
+    const active = room.players.filter((pl) => !pl.eliminated);
+    if (active.length === 1) {
+      // 마지막 활성 플레이어만 남음
+      const lastPlayer = active[0];
+      room.winnerId = lastPlayer.id;
+      lastPlayer.finalAccusation = null;
+      room.status = "finished";
       io.to(room.roomCode).emit("game:win", {
-        winner: p,
+        winner: lastPlayer,
         solution: room.solution,
+        playerAccusations: room.players.map((pl) => ({
+          id: pl.id,
+          nickname: pl.nickname,
+          finalAccusation: pl.finalAccusation,
+          correct: pl.finalAccusation
+            ? pl.finalAccusation.suspect === room.solution!.suspect &&
+              pl.finalAccusation.weapon === room.solution!.weapon &&
+              pl.finalAccusation.room === room.solution!.room
+            : false,
+        })),
       });
       emitRoom(room);
       return;
     }
-    p.eliminated = true;
-    room.lastMessage = `${p.nickname}님이 최종 추리에 실패하여 탈락했습니다. 카드는 공개하지 않고 증명에는 계속 참여합니다.`;
-    io.to(room.roomCode).emit("game:eliminated", { playerId: p.id });
-    nextTurn(room);
+
+    // 다음 활성 플레이어로 턴 변경
+    let nextIndex = (room.currentTurnIndex + 1) % room.players.length;
+    while (room.players[nextIndex].eliminated) {
+      nextIndex = (nextIndex + 1) % room.players.length;
+    }
+    room.currentTurnIndex = nextIndex;
+    const nextPlayer = room.players[nextIndex];
+    room.lastMessage = `${nextPlayer.nickname}님의 최종 추리 차례입니다.`;
+    io.to(room.roomCode).emit("game:turn-start", {
+      playerId: nextPlayer.id,
+      turnNumber: room.turnNumber,
+    });
+    emitRoom(room);
   });
 
   socket.on("game:use-bonus-extra-turn", () => {

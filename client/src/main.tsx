@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { io } from "socket.io-client";
 import {
@@ -37,56 +37,27 @@ const markLabel: Record<NoteMark, string> = {
   maybe: "의심",
 };
 
-function playSound(type: "dice" | "move" | "card" | "win") {
-  const AudioContextClass =
-    window.AudioContext ||
-    (window as unknown as { webkitAudioContext: typeof AudioContext })
-      .webkitAudioContext;
+function playSound(type: "dice" | "move" | "win") {
+  const audio = new AudioContext();
 
-  if (!AudioContextClass) return;
+  const osc = audio.createOscillator();
+  const gain = audio.createGain();
 
-  const audio = new AudioContextClass();
-
-  const playTone = (
-    frequency: number,
-    start: number,
-    duration: number,
-    gainValue = 0.05,
-  ) => {
-    const osc = audio.createOscillator();
-    const gain = audio.createGain();
-
-    osc.frequency.value = frequency;
-    osc.type = type === "card" ? "triangle" : "sine";
-    gain.gain.setValueAtTime(gainValue, audio.currentTime + start);
-    gain.gain.exponentialRampToValueAtTime(
-      0.001,
-      audio.currentTime + start + duration,
-    );
-
-    osc.connect(gain);
-    gain.connect(audio.destination);
-
-    osc.start(audio.currentTime + start);
-    osc.stop(audio.currentTime + start + duration);
+  const freq = {
+    dice: 250,
+    move: 420,
+    win: 880,
   };
 
-  if (type === "dice") {
-    playTone(180, 0, 0.08, 0.04);
-    playTone(260, 0.08, 0.08, 0.04);
-    playTone(340, 0.16, 0.1, 0.04);
-  } else if (type === "move") {
-    playTone(420, 0, 0.08, 0.04);
-    playTone(520, 0.08, 0.08, 0.035);
-  } else if (type === "card") {
-    playTone(520, 0, 0.07, 0.035);
-    playTone(760, 0.08, 0.12, 0.035);
-  } else if (type === "win") {
-    playTone(523, 0, 0.12, 0.045);
-    playTone(659, 0.13, 0.12, 0.045);
-    playTone(784, 0.26, 0.16, 0.05);
-    playTone(1046, 0.44, 0.35, 0.055);
-  }
+  osc.frequency.value = freq[type];
+
+  gain.gain.value = 0.05;
+
+  osc.connect(gain);
+  gain.connect(audio.destination);
+
+  osc.start();
+  osc.stop(audio.currentTime + 0.15);
 }
 
 function App() {
@@ -115,6 +86,9 @@ function App() {
   const [disproveCards, setDisproveCards] = useState<Card[]>([]);
   const [revealed, setRevealed] = useState<Card | null>(null);
   const [leftoverRevealed, setLeftoverRevealed] = useState<Card[]>([]);
+  const [leftoverChoiceCount, setLeftoverChoiceCount] = useState(0);
+  const [temporaryLeftoverCard, setTemporaryLeftoverCard] =
+    useState<Card | null>(null);
   const [bonusCards, setBonusCards] = useState<
     Array<"extra-turn" | "extra-suggestion">
   >([]);
@@ -126,10 +100,15 @@ function App() {
   const [winResult, setWinResult] = useState<{
     winner: any;
     solution: Suggestion;
+    playerAccusations?: Array<{
+      id: string;
+      nickname: string;
+      finalAccusation: Suggestion | null;
+      correct: boolean;
+    }>;
   } | null>(null);
 
   const [bgmEnabled, setBgmEnabled] = useState(false);
-  const lastBonusMessageRef = useRef<string | null>(null);
 
   const me = room?.players.find((p) => p.id === playerId) ?? null;
   const isMyTurn =
@@ -182,17 +161,7 @@ function App() {
       setPlayerId("");
       setHand([]);
     });
-    socket.on("room:state", (state) => {
-      setRoom(state);
-
-      if (
-        state.bonusMessage &&
-        state.bonusMessage !== lastBonusMessageRef.current
-      ) {
-        lastBonusMessageRef.current = state.bonusMessage;
-        playSound("card");
-      }
-    });
+    socket.on("room:state", (state) => setRoom(state));
     socket.on("game:your-cards", ({ cards }) => {
       setHand(cards);
       setNotes((prev) => ({
@@ -201,8 +170,6 @@ function App() {
       }));
     });
     socket.on("game:error", ({ message }) => setError(message));
-    socket.on("game:rolled", () => playSound("dice"));
-    socket.on("game:moved", () => playSound("move"));
     socket.on("game:disprove-request", ({ matchingCards }) =>
       setDisproveCards(matchingCards),
     );
@@ -218,6 +185,15 @@ function App() {
         ...Object.fromEntries(cards.map((c: Card) => [c.name, "seen"])),
       }));
     });
+    socket.on("game:leftover-choice-needed", ({ count }) => {
+      setLeftoverChoiceCount(count);
+      setTemporaryLeftoverCard(null);
+    });
+    socket.on("game:leftover-card-revealed-once", ({ card }) => {
+      setTemporaryLeftoverCard(card);
+      setLeftoverChoiceCount(0);
+      setNotes((prev) => ({ ...prev, [card.name]: "seen" }));
+    });
     socket.on("game:bonus-inventory", ({ bonusCards }) =>
       setBonusCards(bonusCards),
     );
@@ -225,19 +201,16 @@ function App() {
     socket.on("game:private-log", ({ message }) =>
       setPrivateLogs((prev) => [...prev.slice(-79), message]),
     );
-    socket.on("game:win", ({ winner, solution }) => {
+    socket.on("game:win", ({ winner, solution, playerAccusations }) => {
       setDisproveCards([]);
       setWinResult({
         winner,
         solution,
+        playerAccusations,
       });
 
       playSound("win");
     });
-
-    return () => {
-      socket.removeAllListeners();
-    };
   }, []);
 
   useEffect(() => {
@@ -245,6 +218,12 @@ function App() {
       setSuggestion((s) => ({ ...s, room: inRoom as RoomName }));
     }
   }, [inRoom]);
+
+  useEffect(() => {
+    // 숨김 카드는 “그 턴에만” 보이도록 턴이 바뀌면 자동으로 숨깁니다.
+    setLeftoverChoiceCount(0);
+    setTemporaryLeftoverCard(null);
+  }, [room?.turnNumber, room?.currentTurnPlayerId]);
 
   const zoomRoom = useMemo(
     () => boardRooms.find((r) => r.name === inRoom) ?? null,
@@ -258,7 +237,7 @@ function App() {
       : undefined;
   const canAccuse =
     isMyTurn &&
-    inRoom === "현관" &&
+    (room?.winnerId ? true : inRoom === "현관") &&
     !room?.pendingDisprove &&
     !me?.finalAccused;
 
@@ -292,6 +271,9 @@ function App() {
   function bonusMoveRoom(roomName: RoomName) {
     socket.emit("game:bonus-move-room", { roomName });
   }
+  function chooseLeftoverCard(index: number) {
+    socket.emit("game:choose-leftover-card", { index });
+  }
   function accuse() {
     if (confirm("정말 최종 추리하시겠습니까? 틀리면 탈락합니다."))
       socket.emit("game:accuse", accusation);
@@ -317,6 +299,8 @@ function App() {
     setDisproveCards([]);
     setRevealed(null);
     setLeftoverRevealed([]);
+    setLeftoverChoiceCount(0);
+    setTemporaryLeftoverCard(null);
     setBonusCards([]);
     setPrivateLogs([]);
   }
@@ -368,7 +352,7 @@ function App() {
           <div className="winPopup">
             <h1>사건 해결!</h1>
 
-            <h2>🏆 {winResult.winner?.nickname ?? "승자"} 승리</h2>
+            <h2>🏆 {winResult.winner.nickname} 승리</h2>
 
             <div className="solutionBox">
               <p>
@@ -389,6 +373,44 @@ function App() {
                 {winResult.solution.room}
               </p>
             </div>
+
+            {winResult.playerAccusations && (
+              <div className="playerAccusationsBox">
+                <h3>플레이어별 최종 추리</h3>
+                <table className="accusationTable">
+                  <thead>
+                    <tr>
+                      <th>플레이어</th>
+                      <th>범인</th>
+                      <th>흉기</th>
+                      <th>장소</th>
+                      <th>결과</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {winResult.playerAccusations.map((acc) => (
+                      <tr key={acc.id} className={acc.correct ? "correct" : ""}>
+                        <td>{acc.nickname}</td>
+                        <td>{acc.finalAccusation?.suspect || "-"}</td>
+                        <td>{acc.finalAccusation?.weapon || "-"}</td>
+                        <td>{acc.finalAccusation?.room || "-"}</td>
+                        <td
+                          className={
+                            acc.correct
+                              ? "correct"
+                              : acc.finalAccusation
+                                ? "wrong"
+                                : "no-guess"
+                          }
+                        >
+                          {acc.correct ? "✓" : acc.finalAccusation ? "✗" : "-"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
 
             <button onClick={() => setWinResult(null)}>확인</button>
           </div>
@@ -480,7 +502,7 @@ function App() {
             playerId={playerId}
             canMoveTiles={canMoveTiles}
             onMove={move}
-            zoomRoom={!isChoosingMove ? (zoomRoom?.name ?? null) : null}
+            zoomRoom={null}
           />
         </section>
         <aside className="side">
@@ -504,14 +526,24 @@ function App() {
                 : "아직 안 굴림"}
             </p>
             <button
-              disabled={!isMyTurn || room.hasRolled || !!room.pendingDisprove}
+              disabled={
+                !isMyTurn ||
+                room.hasRolled ||
+                !!room.pendingDisprove ||
+                room.hasSuggested
+              }
               onClick={roll}
             >
               주사위 2개 굴리기
             </button>
             {secretTarget && (
               <button
-                disabled={!isMyTurn || room.hasRolled || !!room.pendingDisprove}
+                disabled={
+                  !isMyTurn ||
+                  room.hasRolled ||
+                  !!room.pendingDisprove ||
+                  room.hasSuggested
+                }
                 onClick={useSecretPassage}
               >
                 비밀통로로 {secretTarget} 이동
@@ -609,22 +641,30 @@ function App() {
               ))}
             </div>
           </section>
-          {inRoom === "현관" && (
-            <section className="panel accusationBox">
-              <h2>최종 고발</h2>
-              <SelectLine
-                value={accusation}
-                setValue={setAccusation}
-                lockRoom={null}
-              />
-              <button className="danger" disabled={!canAccuse} onClick={accuse}>
-                최종 추리하기
-              </button>
-              <p className="hint">
-                최종 추리는 중앙 현관에서만 가능하며, 한 번 실패하면 탈락합니다.
-              </p>
-            </section>
-          )}
+          {isMyTurn &&
+            !me?.finalAccused &&
+            (room?.winnerId || inRoom === "현관") && (
+              <section className="panel accusationBox">
+                <h2>최종 고발</h2>
+                <SelectLine
+                  value={accusation}
+                  setValue={setAccusation}
+                  lockRoom={null}
+                />
+                <button
+                  className="danger"
+                  disabled={!canAccuse}
+                  onClick={accuse}
+                >
+                  최종 추리하기
+                </button>
+                <p className="hint">
+                  {room?.winnerId
+                    ? "다른 플레이어가 정답을 맞혔습니다. 당신의 최종 추리를 남겨주세요. (현재 위치 무관)"
+                    : "최종 추리는 중앙 현관에서만 가능하며, 한 번 실패하면 탈락합니다."}
+                </p>
+              </section>
+            )}
           {zoomRoom && zoomRoom.name !== "현관" && (
             <section className="panel zoomActions">
               <h2>{zoomRoom.name} 도착</h2>
@@ -673,6 +713,31 @@ function App() {
             <section className="panel revealed">
               <h2>상대가 보여준 카드</h2>
               <div className="bigCard">{revealed.name}</div>
+            </section>
+          )}
+          {leftoverChoiceCount > 0 && (
+            <section className="panel revealed">
+              <h2>숨김 카드 선택</h2>
+              <p className="hint">
+                상대가 증명하지 못했습니다. 이번 턴에만 숨김 카드 1장을 확인할
+                수 있습니다.
+              </p>
+              <div className="bonusButtons">
+                {Array.from({ length: leftoverChoiceCount }).map((_, index) => (
+                  <button key={index} onClick={() => chooseLeftoverCard(index)}>
+                    {index + 1}번 카드 확인
+                  </button>
+                ))}
+              </div>
+            </section>
+          )}
+          {temporaryLeftoverCard && (
+            <section className="panel revealed">
+              <h2>이번 턴에 확인한 숨김 카드</h2>
+              <div className="bigCard">{temporaryLeftoverCard.name}</div>
+              <p className="hint">
+                이 카드는 나에게만 보이며, 턴이 바뀌면 자동으로 사라집니다.
+              </p>
             </section>
           )}
           {leftoverRevealed.length > 0 && (
@@ -753,9 +818,7 @@ function Board({
   zoomRoom: string | null;
 }) {
   const me = room.players.find((p) => p.id === playerId) ?? null;
-  const viewBox = zoomRoom
-    ? roomViewBox(zoomRoom, me?.tileId ?? null)
-    : `0 0 ${W} ${H}`;
+  const viewBox = `0 0 ${W} ${H}`;
   const roomCells = boardRooms.flatMap((r) =>
     r.cells.map((cell) => ({ ...cell, room: r.name, fill: r.fill })),
   );
