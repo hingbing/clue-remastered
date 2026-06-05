@@ -573,11 +573,21 @@ io.on("connection", (socket) => {
           c.name !== room.solution?.room,
       ),
     );
-    const perPlayer = Math.floor(rest.length / room.players.length);
-    for (const player of room.players) {
-      player.hand = rest.splice(0, perPlayer);
+    if (room.players.length === 2) {
+      for (const player of room.players) {
+        player.hand = rest.splice(0, 7);
+      }
+
+      room.leftoverCards = rest.splice(0, 4);
+    } else {
+      const perPlayer = Math.floor(rest.length / room.players.length);
+
+      for (const player of room.players) {
+        player.hand = rest.splice(0, perPlayer);
+      }
+
+      room.leftoverCards = rest;
     }
-    room.leftoverCards = rest;
 
     room.firstRolls = room.players.map((player) => {
       const total =
@@ -746,11 +756,22 @@ io.on("connection", (socket) => {
     );
     if (!disprover) {
       p.failedNoDisproveCount += 1;
-      revealLeftoversIfNeeded(room, p);
-      if (p.failedNoDisproveCount < 3 || room.leftoverCards.length === 0)
-        room.lastMessage =
-          "아무도 증명하지 못했습니다. 고발하거나 턴을 넘기세요.";
+
+      if (
+        room.players.length === 2 &&
+        room.leftoverCards.length > 0 &&
+        p.socketId
+      ) {
+        io.to(p.socketId).emit("game:leftover-choice-needed", {
+          count: room.leftoverCards.length,
+        });
+      }
+
+      room.lastMessage =
+        "아무도 증명하지 못했습니다. 숨김 카드 1장을 선택할 수 있습니다.";
+
       io.to(room.roomCode).emit("game:no-disprove", { suggestion });
+
       emitRoom(room);
       return;
     }
@@ -768,6 +789,28 @@ io.on("connection", (socket) => {
       });
     room.lastMessage = `${disprover.nickname}님이 증명할 카드를 선택해야 합니다.`;
     emitRoom(room);
+  });
+
+  socket.on("game:choose-leftover-card", ({ index }: { index: number }) => {
+    const room = findBySocket(socket);
+
+    if (!room) {
+      return;
+    }
+
+    const player = findPlayer(room, socket);
+
+    if (!player) {
+      return;
+    }
+
+    const card = room.leftoverCards[index];
+
+    if (!card) {
+      return;
+    }
+
+    io.to(socket.id).emit("game:leftover-card-revealed-once", { card });
   });
 
   socket.on("game:disprove", ({ cardId }: { cardId: string }) => {
