@@ -170,6 +170,9 @@ function App() {
       }));
     });
     socket.on("game:error", ({ message }) => setError(message));
+    socket.on("game:eliminated", ({ message, nickname }) =>
+      setError(message || `${nickname}님이 탈락했습니다.`),
+    );
     socket.on("game:disprove-request", ({ matchingCards }) =>
       setDisproveCards(matchingCards),
     );

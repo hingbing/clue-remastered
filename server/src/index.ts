@@ -755,7 +755,7 @@ io.on("connection", (socket) => {
     const ordered = [
       ...room.players.slice(room.currentTurnIndex + 1),
       ...room.players.slice(0, room.currentTurnIndex),
-    ].filter((x) => x.id !== p.id && !x.eliminated);
+    ].filter((x) => x.id !== p.id);
     const disprover = ordered.find(
       (x) => matchingCards(x, suggestion).length > 0,
     );
@@ -979,8 +979,13 @@ io.on("connection", (socket) => {
 
     // winnerId가 없고 정답이 아닌 경우 (이전 코드처럼 탈락)
     p.eliminated = true;
-    room.lastMessage = `${p.nickname}님이 최종 추리에 실패하여 탈락했습니다.`;
-    io.to(room.roomCode).emit("game:eliminated", { playerId: p.id });
+    const eliminatedMessage = `${p.nickname}님이 최종 추리에 실패하여 탈락했습니다.`;
+    room.lastMessage = eliminatedMessage;
+    io.to(room.roomCode).emit("game:eliminated", {
+      playerId: p.id,
+      nickname: p.nickname,
+      message: eliminatedMessage,
+    });
 
     // 다음 활성 플레이어 찾기
     const active = room.players.filter((pl) => !pl.eliminated);
