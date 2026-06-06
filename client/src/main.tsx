@@ -72,6 +72,7 @@ function App() {
   const [room, setRoom] = useState<PublicRoomState | null>(null);
   const [hand, setHand] = useState<Card[]>([]);
   const [error, setError] = useState("");
+  const [eliminationNotice, setEliminationNotice] = useState("");
   const [selectedTile, setSelectedTile] = useState<string | null>(null);
   const [suggestion, setSuggestion] = useState<Suggestion>({
     suspect: suspects[0],
@@ -171,8 +172,9 @@ function App() {
     });
     socket.on("game:error", ({ message }) => setError(message));
     socket.on("game:eliminated", ({ message, nickname }) =>
-      setError(message || `${nickname}님이 탈락했습니다.`),
+      setEliminationNotice(message || `${nickname}님이 탈락했습니다.`),
     );
+    socket.on("game:rolled", () => setEliminationNotice(""));
     socket.on("game:disprove-request", ({ matchingCards }) =>
       setDisproveCards(matchingCards),
     );
@@ -467,7 +469,9 @@ function App() {
           방 나가기
         </button>
       </header>
-      {error && <div className="toast">{error}</div>}
+      {(error || eliminationNotice) && (
+        <div className="toast">{error || eliminationNotice}</div>
+      )}
       {showLogs && (
         <section className="logDrawer">
           <div className="logHead">
