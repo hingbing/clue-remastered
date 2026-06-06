@@ -762,11 +762,7 @@ io.on("connection", (socket) => {
     if (!disprover) {
       p.failedNoDisproveCount += 1;
 
-      if (
-        room.players.length === 2 &&
-        room.leftoverCards.length > 0 &&
-        p.socketId
-      ) {
+      if (room.leftoverCards.length > 0 && p.socketId) {
         io.to(p.socketId).emit("game:leftover-choice-needed", {
           count: room.leftoverCards.length,
         });
