@@ -859,11 +859,24 @@ io.on("connection", (socket) => {
       return socket.emit("game:error", {
         message: "진행 중인 게임이 없습니다.",
       });
-    const err = turnError(socket, room);
-    if (err) return socket.emit("game:error", { message: err });
+
+    // winnerId가 없으면 (첫 정답) 턴 체크, 있으면 (나머지 플레이어) 플레이어만 확인
+    let p: Player;
+    if (!room.winnerId) {
+      const err = turnError(socket, room);
+      if (err) return socket.emit("game:error", { message: err });
+      p = current(room)!;
+    } else {
+      const player = findPlayer(room, socket);
+      if (!player)
+        return socket.emit("game:error", {
+          message: "플레이어 정보를 찾을 수 없습니다.",
+        });
+      p = player;
+    }
+
     if (!validSuggestion(accusation))
       return socket.emit("game:error", { message: "잘못된 최종 추리입니다." });
-    const p = current(room)!;
     if (p.finalAccused)
       return socket.emit("game:error", {
         message: "최종 추리는 한 번만 가능합니다.",
@@ -947,7 +960,7 @@ io.on("connection", (socket) => {
           })),
         });
       } else {
-        // 다음 플레이어로 턴 변경
+        // 다음 플레이어로 턴 변경 (아직 최종 추리를 하지 않은 플레이어)
         let nextIndex = (room.currentTurnIndex + 1) % room.players.length;
         while (room.players[nextIndex].finalAccused) {
           nextIndex = (nextIndex + 1) % room.players.length;
