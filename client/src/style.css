@@ -33,6 +33,20 @@ button:disabled {
   cursor: not-allowed;
   box-shadow: none;
 }
+.chatToggle {
+  position: relative;
+}
+.chatToggle.unread::after {
+  content: "";
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #e53935;
+  box-shadow: 0 0 0 2px #241a13;
+}
 input,
 select {
   background: #2b2118;

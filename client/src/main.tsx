@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { io } from "socket.io-client";
 import {
@@ -44,6 +44,46 @@ const markLabel: Record<NoteMark, string> = {
   none: "X",
   maybe: "의심",
 };
+
+const emptyNotes = () =>
+  Object.fromEntries(allNames.map((n) => [n, "unknown"])) as Notes;
+
+function noteStorageKey(roomCode: string, playerId: string) {
+  return `clue_notes_${roomCode}_${playerId}`;
+}
+
+function normalizeNotes(value: unknown): Notes {
+  const valid = new Set<NoteMark>(["unknown", "mine", "seen", "none", "maybe"]);
+  const input =
+    value && typeof value === "object" ? (value as Record<string, unknown>) : {};
+  const next = emptyNotes();
+
+  for (const name of allNames) {
+    const mark = input[name];
+    if (typeof mark === "string" && valid.has(mark as NoteMark)) {
+      next[name] = mark as NoteMark;
+    }
+  }
+
+  return next;
+}
+
+function loadSavedNotes(roomCode: string, playerId: string): Notes {
+  try {
+    const raw = localStorage.getItem(noteStorageKey(roomCode, playerId));
+    return raw ? normalizeNotes(JSON.parse(raw)) : emptyNotes();
+  } catch {
+    return emptyNotes();
+  }
+}
+
+function saveNotes(roomCode: string, playerId: string, notes: Notes) {
+  try {
+    localStorage.setItem(noteStorageKey(roomCode, playerId), JSON.stringify(notes));
+  } catch {
+    // Note persistence is best-effort. The in-memory note still works.
+  }
+}
 
 function playSound(type: "dice" | "move" | "win") {
   const audio = new AudioContext();
@@ -112,11 +152,16 @@ function App() {
   const [privateLogs, setPrivateLogs] = useState<string[]>([]);
   const [showLogs, setShowLogs] = useState(false);
   const [showChat, setShowChat] = useState(false);
+  const [hasUnreadChat, setHasUnreadChat] = useState(false);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [chatDraft, setChatDraft] = useState("");
-  const [notes, setNotes] = useState<Notes>(
-    () => Object.fromEntries(allNames.map((n) => [n, "unknown"])) as Notes,
-  );
+  const [notes, setNotes] = useState<Notes>(() => {
+    const savedRoom = sessionStorage.getItem("clue_room_code");
+    const savedPlayer = sessionStorage.getItem("clue_player_id");
+    return savedRoom && savedPlayer
+      ? loadSavedNotes(savedRoom, savedPlayer)
+      : emptyNotes();
+  });
   const [winResult, setWinResult] = useState<{
     winner: any;
     solution: Suggestion;
@@ -140,41 +185,71 @@ function App() {
   );
   const currentTile = me ? tileById[me.tileId] : null;
   const inRoom = me?.room ?? null;
+  const noteIdentityRef = useRef({ roomCode, playerId });
+  const showChatRef = useRef(showChat);
+  const updateNotes = (updater: (prev: Notes) => Notes) => {
+    setNotes((prev) => {
+      const next = normalizeNotes(updater(prev));
+      const identity = noteIdentityRef.current;
+      if (identity.roomCode && identity.playerId) {
+        saveNotes(identity.roomCode, identity.playerId, next);
+      }
+      return next;
+    });
+  };
+
+  useEffect(() => {
+    noteIdentityRef.current = { roomCode, playerId };
+  }, [roomCode, playerId]);
+
+  useEffect(() => {
+    showChatRef.current = showChat;
+    if (showChat) setHasUnreadChat(false);
+  }, [showChat]);
 
   useEffect(() => {
     const handleRoomCreated = ({ roomCode, playerId, roomState }: any) => {
+      noteIdentityRef.current = { roomCode, playerId };
       setRoomCode(roomCode);
       setPlayerId(playerId);
       setRoom(roomState);
+      setNotes(loadSavedNotes(roomCode, playerId));
       setError("");
       sessionStorage.setItem("clue_room_code", roomCode);
       sessionStorage.setItem("clue_player_id", playerId);
     };
     const handleRoomJoined = ({ playerId, roomState }: any) => {
+      noteIdentityRef.current = { roomCode: roomState.roomCode, playerId };
       setPlayerId(playerId);
       setRoom(roomState);
+      setNotes(loadSavedNotes(roomState.roomCode, playerId));
       setError("");
       sessionStorage.setItem("clue_player_id", playerId);
       sessionStorage.setItem("clue_room_code", roomState.roomCode);
     };
     const handleRoomRejoined = ({ playerId, roomState }: any) => {
+      noteIdentityRef.current = { roomCode: roomState.roomCode, playerId };
       setPlayerId(playerId);
       setRoom(roomState);
+      setNotes(loadSavedNotes(roomState.roomCode, playerId));
       setError("재접속 완료");
     };
     const handleRoomRejoinFailed = () => {
       setError("이전 게임으로 재접속하지 못했습니다. 새로 입장해주세요.");
     };
     const handleRoomLeft = () => {
+      noteIdentityRef.current = { roomCode: "", playerId: "" };
       sessionStorage.removeItem("clue_player_id");
       sessionStorage.removeItem("clue_room_code");
       setRoom(null);
       setRoomCode("");
       setPlayerId("");
       setHand([]);
+      setNotes(emptyNotes());
       setChatMessages([]);
       setChatDraft("");
       setShowChat(false);
+      setHasUnreadChat(false);
     };
     const handleRoomState = (state: PublicRoomState) => setRoom(state);
     const handleChatHistory = ({ messages }: any) => {
@@ -182,10 +257,11 @@ function App() {
     };
     const handleChatMessage = ({ message }: any) => {
       setChatMessages((prev) => [...prev.slice(-9), message]);
+      if (!showChatRef.current) setHasUnreadChat(true);
     };
     const handleYourCards = ({ cards }: { cards: Card[] }) => {
       setHand(cards);
-      setNotes((prev) => ({
+      updateNotes((prev) => ({
         ...prev,
         ...Object.fromEntries(cards.map((c: Card) => [c.name, "mine"])),
       }));
@@ -200,12 +276,12 @@ function App() {
     };
     const handleCardRevealed = ({ card }: { card: Card }) => {
       setRevealed(card);
-      setNotes((prev) => ({ ...prev, [card.name]: "seen" }));
+      updateNotes((prev) => ({ ...prev, [card.name]: "seen" }));
     };
     const handleGameDisproved = () => setDisproveCards([]);
     const handleLeftoverRevealed = ({ cards }: { cards: Card[] }) => {
       setLeftoverRevealed(cards);
-      setNotes((prev) => ({
+      updateNotes((prev) => ({
         ...prev,
         ...Object.fromEntries(cards.map((c: Card) => [c.name, "seen"])),
       }));
@@ -217,7 +293,7 @@ function App() {
     const handleLeftoverCardRevealedOnce = ({ card }: { card: Card }) => {
       setTemporaryLeftoverCard(card);
       setLeftoverChoiceCount(0);
-      setNotes((prev) => ({ ...prev, [card.name]: "seen" }));
+      updateNotes((prev) => ({ ...prev, [card.name]: "seen" }));
     };
     const handleBonusInventory = ({ bonusCards }: any) => {
       setBonusCards(bonusCards);
@@ -374,6 +450,7 @@ function App() {
     setChatMessages([]);
     setChatDraft("");
     setShowChat(false);
+    setHasUnreadChat(false);
   }
   function disprove(cardId: string) {
     socket.emit("game:disprove", { cardId });
@@ -393,7 +470,7 @@ function App() {
 
   function cycleNote(name: string) {
     const order: NoteMark[] = ["unknown", "maybe", "none", "seen", "mine"];
-    setNotes((prev) => ({
+    updateNotes((prev) => ({
       ...prev,
       [name]:
         order[(order.indexOf(prev[name] ?? "unknown") + 1) % order.length],
@@ -552,10 +629,11 @@ function App() {
           로그
         </button>
         <button
-          className="secondary"
+          className={hasUnreadChat ? "secondary chatToggle unread" : "secondary chatToggle"}
           onClick={() => {
             setShowChat((v) => !v);
             setShowLogs(false);
+            setHasUnreadChat(false);
           }}
         >
           채팅
