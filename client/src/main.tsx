@@ -28,6 +28,14 @@ const H = BOARD_ROWS * CELL;
 
 type NoteMark = "unknown" | "mine" | "seen" | "none" | "maybe";
 type Notes = Record<string, NoteMark>;
+type ChatMessage = {
+  id: string;
+  playerId: string;
+  nickname: string;
+  text: string;
+  createdAt: number;
+};
+
 const allNames = [...suspects, ...weapons, ...rooms];
 const markLabel: Record<NoteMark, string> = {
   unknown: "?",
@@ -58,6 +66,14 @@ function playSound(type: "dice" | "move" | "win") {
 
   osc.start();
   osc.stop(audio.currentTime + 0.15);
+}
+
+function sanitizeChatText(value: string) {
+  return value
+    .replace(/[\p{Extended_Pictographic}\p{Emoji_Presentation}\uFE0F]/gu, "")
+    .replace(/[\u0000-\u001F\u007F]/g, " ")
+    .replace(/\s+/g, " ")
+    .slice(0, 120);
 }
 
 function App() {
@@ -95,6 +111,9 @@ function App() {
   >([]);
   const [privateLogs, setPrivateLogs] = useState<string[]>([]);
   const [showLogs, setShowLogs] = useState(false);
+  const [showChat, setShowChat] = useState(false);
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [chatDraft, setChatDraft] = useState("");
   const [notes, setNotes] = useState<Notes>(
     () => Object.fromEntries(allNames.map((n) => [n, "unknown"])) as Notes,
   );
@@ -161,8 +180,17 @@ function App() {
       setRoomCode("");
       setPlayerId("");
       setHand([]);
+      setChatMessages([]);
+      setChatDraft("");
+      setShowChat(false);
     });
     socket.on("room:state", (state) => setRoom(state));
+    socket.on("chat:history", ({ messages }) =>
+      setChatMessages((messages ?? []).slice(-10)),
+    );
+    socket.on("chat:message", ({ message }) =>
+      setChatMessages((prev) => [...prev.slice(-9), message]),
+    );
     socket.on("game:your-cards", ({ cards }) => {
       setHand(cards);
       setNotes((prev) => ({
@@ -311,10 +339,24 @@ function App() {
     setTemporaryLeftoverCard(null);
     setBonusCards([]);
     setPrivateLogs([]);
+    setChatMessages([]);
+    setChatDraft("");
+    setShowChat(false);
   }
   function disprove(cardId: string) {
     socket.emit("game:disprove", { cardId });
     setDisproveCards([]);
+  }
+
+  function sendChat(e: React.FormEvent) {
+    e.preventDefault();
+    const clean = sanitizeChatText(chatDraft).trim();
+    if (!clean) {
+      setChatDraft("");
+      return;
+    }
+    socket.emit("chat:send", { text: clean });
+    setChatDraft("");
   }
 
   function cycleNote(name: string) {
@@ -468,8 +510,23 @@ function App() {
             턴 넘기기
           </button>
         )}
-        <button className="secondary" onClick={() => setShowLogs((v) => !v)}>
+        <button
+          className="secondary"
+          onClick={() => {
+            setShowLogs((v) => !v);
+            setShowChat(false);
+          }}
+        >
           로그
+        </button>
+        <button
+          className="secondary"
+          onClick={() => {
+            setShowChat((v) => !v);
+            setShowLogs(false);
+          }}
+        >
+          채팅
         </button>
         <button className="secondary" onClick={leaveRoom}>
           방 나가기
@@ -502,6 +559,40 @@ function App() {
               )}
             </div>
           </div>
+        </section>
+      )}
+      {showChat && (
+        <section className="logDrawer chatDrawer">
+          <div className="logHead">
+            <h2>채팅</h2>
+            <button onClick={() => setShowChat(false)}>닫기</button>
+          </div>
+          <div className="chatList">
+            {chatMessages.slice(-10).length ? (
+              chatMessages.slice(-10).map((message) => (
+                <div
+                  className={
+                    message.playerId === playerId ? "chatMessage mine" : "chatMessage"
+                  }
+                  key={message.id}
+                >
+                  <b>{message.nickname}</b>
+                  <span>{message.text}</span>
+                </div>
+              ))
+            ) : (
+              <p className="hint">아직 채팅이 없습니다.</p>
+            )}
+          </div>
+          <form className="chatForm" onSubmit={sendChat}>
+            <input
+              value={chatDraft}
+              maxLength={120}
+              placeholder="텍스트만 입력"
+              onChange={(e) => setChatDraft(sanitizeChatText(e.target.value))}
+            />
+            <button disabled={!chatDraft.trim()}>전송</button>
+          </form>
         </section>
       )}
       <section className="layout">

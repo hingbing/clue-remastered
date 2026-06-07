@@ -371,6 +371,48 @@ select {
   font-size: 13px;
   line-height: 1.45;
 }
+.chatDrawer {
+  display: grid;
+  gap: 12px;
+}
+.chatList {
+  display: grid;
+  gap: 8px;
+  max-height: 260px;
+  overflow-y: auto;
+}
+.chatMessage {
+  display: grid;
+  grid-template-columns: 120px 1fr;
+  gap: 10px;
+  align-items: start;
+  padding: 9px 10px;
+  border-radius: 10px;
+  background: #302319;
+  color: #f5eadb;
+  font-size: 13px;
+  line-height: 1.45;
+}
+.chatMessage.mine {
+  background: #2c3d2e;
+}
+.chatMessage b {
+  color: #ffd37a;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.chatMessage span {
+  overflow-wrap: anywhere;
+}
+.chatForm {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+}
+.chatForm input {
+  min-width: 0;
+}
 .storedBonus {
   border-color: #d6a629;
   background: linear-gradient(135deg, #3f3217, #241a13);
@@ -382,6 +424,13 @@ select {
 }
 @media (max-width: 800px) {
   .logGrid {
+    grid-template-columns: 1fr;
+  }
+  .chatMessage {
+    grid-template-columns: 1fr;
+    gap: 3px;
+  }
+  .chatForm {
     grid-template-columns: 1fr;
   }
 }

@@ -42,6 +42,14 @@ type PendingDisprove = {
   matchingCards: Card[];
 };
 
+type ChatMessage = {
+  id: string;
+  playerId: string;
+  nickname: string;
+  text: string;
+  createdAt: number;
+};
+
 type Room = {
   roomCode: string;
   status: Status;
@@ -67,6 +75,7 @@ type Room = {
   bonusExtraTurn: boolean;
   bonusExtraSuggestion: boolean;
   logs: string[];
+  chatMessages: ChatMessage[];
 };
 
 const app = express();
@@ -160,6 +169,19 @@ function publicRoom(room: Room): PublicRoomState {
 
 function emitRoom(room: Room) {
   io.to(room.roomCode).emit("room:state", publicRoom(room));
+}
+
+function sanitizeChatText(value: unknown) {
+  return String(value ?? "")
+    .replace(/[\p{Extended_Pictographic}\p{Emoji_Presentation}\uFE0F]/gu, "")
+    .replace(/[\u0000-\u001F\u007F]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 120);
+}
+
+function emitChatHistory(socket: Socket, room: Room) {
+  socket.emit("chat:history", { messages: room.chatMessages.slice(-10) });
 }
 
 function emitHands(room: Room) {
@@ -316,6 +338,7 @@ function attachSocket(room: Room, player: Player, socket: Socket) {
   socketPlayerMap.set(socket.id, player.id);
   socket.join(room.roomCode);
   emitPrivatePlayerState(player);
+  emitChatHistory(socket, room);
 }
 
 function createPlayer(
@@ -490,6 +513,7 @@ io.on("connection", (socket) => {
       bonusExtraTurn: false,
       bonusExtraSuggestion: false,
       logs: [],
+      chatMessages: [],
     };
     roomsMap.set(roomCode, room);
     attachSocket(room, player, socket);
@@ -559,6 +583,29 @@ io.on("connection", (socket) => {
   );
 
   socket.on("room:leave", () => leavePlayer(socket));
+
+  socket.on("chat:send", (payload: { text?: unknown } | null) => {
+    const room = findBySocket(socket);
+    const player = room ? findPlayer(room, socket) : null;
+    if (!room || !player)
+      return socket.emit("game:error", { message: "방에 먼저 입장해주세요." });
+
+    const clean = sanitizeChatText(payload?.text);
+    if (!clean)
+      return socket.emit("game:error", {
+        message: "채팅은 텍스트만 입력할 수 있습니다.",
+      });
+
+    const message: ChatMessage = {
+      id: id("chat"),
+      playerId: player.id,
+      nickname: player.nickname,
+      text: clean,
+      createdAt: Date.now(),
+    };
+    room.chatMessages = [...room.chatMessages.slice(-9), message];
+    io.to(room.roomCode).emit("chat:message", { message });
+  });
 
   socket.on("game:start", () => {
     const room = findBySocket(socket);
