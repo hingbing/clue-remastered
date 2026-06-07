@@ -142,38 +142,30 @@ function App() {
   const inRoom = me?.room ?? null;
 
   useEffect(() => {
-    const savedRoom = sessionStorage.getItem("clue_room_code");
-    const savedPlayer = sessionStorage.getItem("clue_player_id");
-    if (savedRoom && savedPlayer)
-      socket.emit("room:rejoin", {
-        roomCode: savedRoom,
-        playerId: savedPlayer,
-      });
-
-    socket.on("room:created", ({ roomCode, playerId, roomState }) => {
+    const handleRoomCreated = ({ roomCode, playerId, roomState }: any) => {
       setRoomCode(roomCode);
       setPlayerId(playerId);
       setRoom(roomState);
       setError("");
       sessionStorage.setItem("clue_room_code", roomCode);
       sessionStorage.setItem("clue_player_id", playerId);
-    });
-    socket.on("room:joined", ({ playerId, roomState }) => {
+    };
+    const handleRoomJoined = ({ playerId, roomState }: any) => {
       setPlayerId(playerId);
       setRoom(roomState);
       setError("");
       sessionStorage.setItem("clue_player_id", playerId);
       sessionStorage.setItem("clue_room_code", roomState.roomCode);
-    });
-    socket.on("room:rejoined", ({ playerId, roomState }) => {
+    };
+    const handleRoomRejoined = ({ playerId, roomState }: any) => {
       setPlayerId(playerId);
       setRoom(roomState);
       setError("재접속 완료");
-    });
-    socket.on("room:rejoin-failed", () =>
-      setError("이전 게임으로 재접속하지 못했습니다. 새로 입장해주세요."),
-    );
-    socket.on("room:left", () => {
+    };
+    const handleRoomRejoinFailed = () => {
+      setError("이전 게임으로 재접속하지 못했습니다. 새로 입장해주세요.");
+    };
+    const handleRoomLeft = () => {
       sessionStorage.removeItem("clue_player_id");
       sessionStorage.removeItem("clue_room_code");
       setRoom(null);
@@ -183,58 +175,58 @@ function App() {
       setChatMessages([]);
       setChatDraft("");
       setShowChat(false);
-    });
-    socket.on("room:state", (state) => setRoom(state));
-    socket.on("chat:history", ({ messages }) =>
-      setChatMessages((messages ?? []).slice(-10)),
-    );
-    socket.on("chat:message", ({ message }) =>
-      setChatMessages((prev) => [...prev.slice(-9), message]),
-    );
-    socket.on("game:your-cards", ({ cards }) => {
+    };
+    const handleRoomState = (state: PublicRoomState) => setRoom(state);
+    const handleChatHistory = ({ messages }: any) => {
+      setChatMessages((messages ?? []).slice(-10));
+    };
+    const handleChatMessage = ({ message }: any) => {
+      setChatMessages((prev) => [...prev.slice(-9), message]);
+    };
+    const handleYourCards = ({ cards }: { cards: Card[] }) => {
       setHand(cards);
       setNotes((prev) => ({
         ...prev,
         ...Object.fromEntries(cards.map((c: Card) => [c.name, "mine"])),
       }));
-    });
-    socket.on("game:error", ({ message }) => setError(message));
-    socket.on("game:eliminated", ({ message, nickname }) =>
-      setEliminationNotice(message || `${nickname}님이 탈락했습니다.`),
-    );
-    socket.on("game:rolled", () => setEliminationNotice(""));
-    socket.on("game:disprove-request", ({ matchingCards }) =>
-      setDisproveCards(matchingCards),
-    );
-    socket.on("game:card-revealed", ({ card }) => {
+    };
+    const handleGameError = ({ message }: any) => setError(message);
+    const handleGameEliminated = ({ message, nickname }: any) => {
+      setEliminationNotice(message || `${nickname}님이 탈락했습니다.`);
+    };
+    const handleGameRolled = () => setEliminationNotice("");
+    const handleDisproveRequest = ({ matchingCards }: any) => {
+      setDisproveCards(matchingCards);
+    };
+    const handleCardRevealed = ({ card }: { card: Card }) => {
       setRevealed(card);
       setNotes((prev) => ({ ...prev, [card.name]: "seen" }));
-    });
-    socket.on("game:disproved", () => setDisproveCards([]));
-    socket.on("game:leftover-revealed", ({ cards }) => {
+    };
+    const handleGameDisproved = () => setDisproveCards([]);
+    const handleLeftoverRevealed = ({ cards }: { cards: Card[] }) => {
       setLeftoverRevealed(cards);
       setNotes((prev) => ({
         ...prev,
         ...Object.fromEntries(cards.map((c: Card) => [c.name, "seen"])),
       }));
-    });
-    socket.on("game:leftover-choice-needed", ({ count }) => {
+    };
+    const handleLeftoverChoiceNeeded = ({ count }: any) => {
       setLeftoverChoiceCount(count);
       setTemporaryLeftoverCard(null);
-    });
-    socket.on("game:leftover-card-revealed-once", ({ card }) => {
+    };
+    const handleLeftoverCardRevealedOnce = ({ card }: { card: Card }) => {
       setTemporaryLeftoverCard(card);
       setLeftoverChoiceCount(0);
       setNotes((prev) => ({ ...prev, [card.name]: "seen" }));
-    });
-    socket.on("game:bonus-inventory", ({ bonusCards }) =>
-      setBonusCards(bonusCards),
-    );
-    socket.on("game:private-logs", ({ logs }) => setPrivateLogs(logs));
-    socket.on("game:private-log", ({ message }) =>
-      setPrivateLogs((prev) => [...prev.slice(-79), message]),
-    );
-    socket.on("game:win", ({ winner, solution, playerAccusations }) => {
+    };
+    const handleBonusInventory = ({ bonusCards }: any) => {
+      setBonusCards(bonusCards);
+    };
+    const handlePrivateLogs = ({ logs }: any) => setPrivateLogs(logs);
+    const handlePrivateLog = ({ message }: any) => {
+      setPrivateLogs((prev) => [...prev.slice(-79), message]);
+    };
+    const handleGameWin = ({ winner, solution, playerAccusations }: any) => {
       setDisproveCards([]);
       setWinResult({
         winner,
@@ -243,7 +235,47 @@ function App() {
       });
 
       playSound("win");
-    });
+    };
+
+    const handlers: Array<[string, (...args: any[]) => void]> = [
+      ["room:created", handleRoomCreated],
+      ["room:joined", handleRoomJoined],
+      ["room:rejoined", handleRoomRejoined],
+      ["room:rejoin-failed", handleRoomRejoinFailed],
+      ["room:left", handleRoomLeft],
+      ["room:state", handleRoomState],
+      ["chat:history", handleChatHistory],
+      ["chat:message", handleChatMessage],
+      ["game:your-cards", handleYourCards],
+      ["game:error", handleGameError],
+      ["game:eliminated", handleGameEliminated],
+      ["game:rolled", handleGameRolled],
+      ["game:disprove-request", handleDisproveRequest],
+      ["game:card-revealed", handleCardRevealed],
+      ["game:disproved", handleGameDisproved],
+      ["game:leftover-revealed", handleLeftoverRevealed],
+      ["game:leftover-choice-needed", handleLeftoverChoiceNeeded],
+      ["game:leftover-card-revealed-once", handleLeftoverCardRevealedOnce],
+      ["game:bonus-inventory", handleBonusInventory],
+      ["game:private-logs", handlePrivateLogs],
+      ["game:private-log", handlePrivateLog],
+      ["game:win", handleGameWin],
+    ];
+
+    for (const [event] of handlers) socket.off(event);
+    for (const [event, handler] of handlers) socket.on(event, handler);
+
+    const savedRoom = sessionStorage.getItem("clue_room_code");
+    const savedPlayer = sessionStorage.getItem("clue_player_id");
+    if (savedRoom && savedPlayer)
+      socket.emit("room:rejoin", {
+        roomCode: savedRoom,
+        playerId: savedPlayer,
+      });
+
+    return () => {
+      for (const [event, handler] of handlers) socket.off(event, handler);
+    };
   }, []);
 
   useEffect(() => {
