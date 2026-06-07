@@ -234,7 +234,9 @@ function App() {
     () => boardRooms.find((r) => r.name === inRoom) ?? null,
     [inRoom],
   );
-  const canMoveTiles = new Set<string>(room?.reachableTileIds ?? []);
+  const canMoveTiles = new Set<string>(
+    room?.winnerId ? [] : (room?.reachableTileIds ?? []),
+  );
   const isChoosingMove = canMoveTiles.size > 0;
   const secretTarget =
     inRoom && inRoom !== "현관"
@@ -244,6 +246,7 @@ function App() {
     isMyTurn &&
     (room?.winnerId ? true : inRoom === "현관") &&
     !room?.pendingDisprove &&
+    !me?.eliminated &&
     !me?.finalAccused;
 
   function createRoom() {
@@ -458,7 +461,10 @@ function App() {
           <button onClick={startGame}>게임 시작</button>
         )}
         {room.status === "playing" && (
-          <button disabled={!isMyTurn || !!room.pendingDisprove} onClick={pass}>
+          <button
+            disabled={!isMyTurn || !!room.pendingDisprove || !!room.winnerId}
+            onClick={pass}
+          >
             턴 넘기기
           </button>
         )}
@@ -535,6 +541,7 @@ function App() {
             <button
               disabled={
                 !isMyTurn ||
+                !!room.winnerId ||
                 room.hasRolled ||
                 !!room.pendingDisprove ||
                 room.hasSuggested
@@ -547,6 +554,7 @@ function App() {
               <button
                 disabled={
                   !isMyTurn ||
+                  !!room.winnerId ||
                   room.hasRolled ||
                   !!room.pendingDisprove ||
                   room.hasSuggested
@@ -613,6 +621,7 @@ function App() {
                 <button
                   disabled={
                     !isMyTurn ||
+                    !!room.winnerId ||
                     !room.hasSuggested ||
                     !!room.pendingDisprove ||
                     room.bonusExtraTurn
@@ -626,6 +635,7 @@ function App() {
                 <button
                   disabled={
                     !isMyTurn ||
+                    !!room.winnerId ||
                     !room.hasSuggested ||
                     !!room.pendingDisprove ||
                     room.bonusExtraSuggestion ||
@@ -649,6 +659,7 @@ function App() {
             </div>
           </section>
           {isMyTurn &&
+            !me?.eliminated &&
             !me?.finalAccused &&
             (room?.winnerId || inRoom === "현관") && (
               <section className="panel accusationBox">
@@ -687,6 +698,7 @@ function App() {
               <button
                 disabled={
                   !isMyTurn ||
+                  !!room.winnerId ||
                   (room.hasSuggested && !room.bonusExtraSuggestion) ||
                   !!room.pendingDisprove ||
                   !!me?.pulledBySuggestion

@@ -271,6 +271,14 @@ function turnError(socket: Socket, room: Room) {
   return null;
 }
 
+function regularTurnError(socket: Socket, room: Room) {
+  const err = turnError(socket, room);
+  if (err) return err;
+  if (room.winnerId)
+    return "최종 추리 단계에서는 최종 추리만 진행할 수 있습니다.";
+  return null;
+}
+
 function matchingCards(player: Player, suggestion: Suggestion) {
   return player.hand.filter(
     (c) =>
@@ -278,6 +286,18 @@ function matchingCards(player: Player, suggestion: Suggestion) {
       c.name === suggestion.weapon ||
       c.name === suggestion.room,
   );
+}
+
+function canTakeFinalAccusationTurn(room: Room, player: Player) {
+  return !player.eliminated && !player.finalAccused && player.id !== room.winnerId;
+}
+
+function nextFinalAccuserIndex(room: Room) {
+  for (let offset = 1; offset <= room.players.length; offset += 1) {
+    const index = (room.currentTurnIndex + offset) % room.players.length;
+    if (canTakeFinalAccusationTurn(room, room.players[index])) return index;
+  }
+  return null;
 }
 
 function validSuggestion(s: Suggestion) {
@@ -617,7 +637,7 @@ io.on("connection", (socket) => {
     const room = findBySocket(socket);
     if (!room)
       return socket.emit("game:error", { message: "방에 먼저 입장해주세요." });
-    const err = turnError(socket, room);
+    const err = regularTurnError(socket, room);
     if (err) return socket.emit("game:error", { message: err });
     if (room.hasRolled)
       return socket.emit("game:error", {
@@ -644,7 +664,7 @@ io.on("connection", (socket) => {
     const room = findBySocket(socket);
     if (!room)
       return socket.emit("game:error", { message: "방에 먼저 입장해주세요." });
-    const err = turnError(socket, room);
+    const err = regularTurnError(socket, room);
     if (err) return socket.emit("game:error", { message: err });
     const p = current(room)!;
     if (!p.room || p.room === "현관")
@@ -681,7 +701,7 @@ io.on("connection", (socket) => {
     const room = findBySocket(socket);
     if (!room)
       return socket.emit("game:error", { message: "방에 먼저 입장해주세요." });
-    const err = turnError(socket, room);
+    const err = regularTurnError(socket, room);
     if (err) return socket.emit("game:error", { message: err });
     if (!room.hasRolled)
       return socket.emit("game:error", {
@@ -716,7 +736,7 @@ io.on("connection", (socket) => {
     const room = findBySocket(socket);
     if (!room)
       return socket.emit("game:error", { message: "방에 먼저 입장해주세요." });
-    const err = turnError(socket, room);
+    const err = regularTurnError(socket, room);
     if (err) return socket.emit("game:error", { message: err });
     const p = current(room)!;
     if (!p.room || p.room === "현관")
@@ -863,12 +883,9 @@ io.on("connection", (socket) => {
       if (err) return socket.emit("game:error", { message: err });
       p = current(room)!;
     } else {
-      const player = findPlayer(room, socket);
-      if (!player)
-        return socket.emit("game:error", {
-          message: "플레이어 정보를 찾을 수 없습니다.",
-        });
-      p = player;
+      const err = turnError(socket, room);
+      if (err) return socket.emit("game:error", { message: err });
+      p = current(room)!;
     }
 
     if (!validSuggestion(accusation))
@@ -895,16 +912,13 @@ io.on("connection", (socket) => {
     // 첫 번째 정답인 경우
     if (correct && !room.winnerId) {
       room.winnerId = p.id;
+      room.bonusExtraTurn = false;
+      resetTurn(room);
       room.lastMessage = `${p.nickname}님이 최종 추리에 성공했습니다! 나머지 플레이어들은 순서대로 최종 추리를 진행합니다.`;
 
-      // 나머지 플레이어들에게 최종 추리 기회 제공
-      const remaining = room.players.filter((pl) => pl.id !== p.id);
-      if (remaining.length > 0) {
-        // 다음 플레이어로 턴 변경
-        let nextIndex = (room.currentTurnIndex + 1) % room.players.length;
-        while (room.players[nextIndex].id === p.id) {
-          nextIndex = (nextIndex + 1) % room.players.length;
-        }
+      // 나머지 생존 플레이어들에게 최종 추리 기회 제공
+      const nextIndex = nextFinalAccuserIndex(room);
+      if (nextIndex !== null) {
         room.currentTurnIndex = nextIndex;
         const nextPlayer = room.players[nextIndex];
         room.lastMessage = `${nextPlayer.nickname}님의 최종 추리 차례입니다. 현재 위치와 상관없이 추리할 수 있습니다.`;
@@ -913,7 +927,7 @@ io.on("connection", (socket) => {
           turnNumber: room.turnNumber,
         });
       } else {
-        // 유일한 플레이어인 경우 바로 게임 종료
+        // 최종 추리를 진행할 생존 플레이어가 없으면 바로 게임 종료
         room.status = "finished";
         io.to(room.roomCode).emit("game:win", {
           winner: p,
@@ -936,9 +950,9 @@ io.on("connection", (socket) => {
 
     // winnerId가 있으면 (나머지 플레이어) 추리 완료 확인
     if (room.winnerId) {
-      const allDone = room.players.every((pl) => pl.finalAccused);
-      if (allDone) {
-        // 모든 플레이어가 추리 완료
+      const nextIndex = nextFinalAccuserIndex(room);
+      if (nextIndex === null) {
+        // 모든 생존 플레이어가 추리 완료
         room.status = "finished";
         const winner = room.players.find((pl) => pl.id === room.winnerId);
         io.to(room.roomCode).emit("game:win", {
@@ -956,11 +970,7 @@ io.on("connection", (socket) => {
           })),
         });
       } else {
-        // 다음 플레이어로 턴 변경 (아직 최종 추리를 하지 않은 플레이어)
-        let nextIndex = (room.currentTurnIndex + 1) % room.players.length;
-        while (room.players[nextIndex].finalAccused) {
-          nextIndex = (nextIndex + 1) % room.players.length;
-        }
+        // 다음 생존 플레이어로 턴 변경 (아직 최종 추리를 하지 않은 플레이어)
         room.currentTurnIndex = nextIndex;
         const nextPlayer = room.players[nextIndex];
         room.lastMessage = `${nextPlayer.nickname}님의 최종 추리 차례입니다.`;
@@ -1030,7 +1040,7 @@ io.on("connection", (socket) => {
     const room = findBySocket(socket);
     if (!room)
       return socket.emit("game:error", { message: "방에 먼저 입장해주세요." });
-    const err = turnError(socket, room);
+    const err = regularTurnError(socket, room);
     if (err) return socket.emit("game:error", { message: err });
     const p = current(room)!;
     if (!room.hasSuggested)
@@ -1055,7 +1065,7 @@ io.on("connection", (socket) => {
     const room = findBySocket(socket);
     if (!room)
       return socket.emit("game:error", { message: "방에 먼저 입장해주세요." });
-    const err = turnError(socket, room);
+    const err = regularTurnError(socket, room);
     if (err) return socket.emit("game:error", { message: err });
     const p = current(room)!;
     if (!room.hasSuggested)
@@ -1170,7 +1180,7 @@ io.on("connection", (socket) => {
     const room = findBySocket(socket);
     if (!room)
       return socket.emit("game:error", { message: "방에 먼저 입장해주세요." });
-    const err = turnError(socket, room);
+    const err = regularTurnError(socket, room);
     if (err) return socket.emit("game:error", { message: err });
     nextTurn(room);
   });
