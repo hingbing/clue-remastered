@@ -56,6 +56,7 @@ type Room = {
   players: Player[];
   solution: Suggestion | null;
   leftoverCards: Card[];
+  leftoverCardsVisible: boolean;
   firstRolls: Array<{ playerId: string; nickname: string; total: number }>;
   currentTurnIndex: number;
   turnNumber: number;
@@ -157,7 +158,9 @@ function publicRoom(room: Room): PublicRoomState {
           suggestion: room.pendingDisprove.suggestion,
         }
       : null,
+    leftoverCardsVisible: room.leftoverCardsVisible,
     leftoverCardCount: room.leftoverCards.length,
+    revealedLeftoverCards: room.leftoverCardsVisible ? room.leftoverCards : [],
     firstRolls: room.firstRolls,
     bonusMessage: room.bonusMessage,
     pendingBonusAction: room.pendingBonusAction,
@@ -412,6 +415,7 @@ function revealLeftoversIfNeeded(room: Room, player: Player) {
   if (
     player.failedNoDisproveCount >= 3 &&
     !player.leftoverSeen &&
+    !room.leftoverCardsVisible &&
     room.leftoverCards.length > 0
   ) {
     player.leftoverSeen = true;
@@ -497,6 +501,7 @@ io.on("connection", (socket) => {
       players: [player],
       solution: null,
       leftoverCards: [],
+      leftoverCardsVisible: false,
       firstRolls: [],
       currentTurnIndex: 0,
       turnNumber: 0,
@@ -583,6 +588,30 @@ io.on("connection", (socket) => {
   );
 
   socket.on("room:leave", () => leavePlayer(socket));
+
+  socket.on(
+    "room:set-leftover-visibility",
+    ({ visible }: { visible?: boolean } = {}) => {
+      const room = findBySocket(socket);
+      if (!room)
+        return socket.emit("game:error", { message: "방에 먼저 입장해주세요." });
+      const player = findPlayer(room, socket);
+      if (!player?.isHost)
+        return socket.emit("game:error", {
+          message: "방장만 숨김 카드 공개 여부를 바꿀 수 있습니다.",
+        });
+      if (room.status !== "waiting")
+        return socket.emit("game:error", {
+          message: "게임 시작 전까지만 바꿀 수 있습니다.",
+        });
+
+      room.leftoverCardsVisible = !!visible;
+      room.lastMessage = room.leftoverCardsVisible
+        ? "숨김 카드를 게임 시작 후 모두에게 공개합니다."
+        : "숨김 카드를 공개하지 않습니다.";
+      emitRoom(room);
+    },
+  );
 
   socket.on("chat:send", (payload: { text?: unknown } | null) => {
     const room = findBySocket(socket);
@@ -829,14 +858,15 @@ io.on("connection", (socket) => {
     if (!disprover) {
       p.failedNoDisproveCount += 1;
 
-      if (room.leftoverCards.length > 0 && p.socketId) {
+      if (!room.leftoverCardsVisible && room.leftoverCards.length > 0 && p.socketId) {
         io.to(p.socketId).emit("game:leftover-choice-needed", {
           count: room.leftoverCards.length,
         });
       }
 
-      room.lastMessage =
-        "아무도 증명하지 못했습니다. 숨김 카드 1장을 선택할 수 있습니다.";
+      room.lastMessage = room.leftoverCardsVisible
+        ? "아무도 증명하지 못했습니다."
+        : "아무도 증명하지 못했습니다. 숨김 카드 1장을 선택할 수 있습니다.";
 
       io.to(room.roomCode).emit("game:no-disprove", { suggestion });
 
@@ -863,6 +893,10 @@ io.on("connection", (socket) => {
     const room = findBySocket(socket);
 
     if (!room) {
+      return;
+    }
+
+    if (room.leftoverCardsVisible) {
       return;
     }
 

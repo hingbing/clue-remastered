@@ -33,6 +33,18 @@ button:disabled {
   cursor: not-allowed;
   box-shadow: none;
 }
+.leftoverOption {
+  display: flex;
+  gap: 6px;
+}
+.leftoverOption button {
+  padding: 8px 10px;
+  box-shadow: none;
+}
+.leftoverOption .selected {
+  background: #ffd37a;
+  color: #1f160c;
+}
 .chatToggle {
   position: relative;
 }

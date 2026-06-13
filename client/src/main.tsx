@@ -203,6 +203,22 @@ function App() {
   }, [roomCode, playerId]);
 
   useEffect(() => {
+    if (!room?.leftoverCardsVisible || room.revealedLeftoverCards.length === 0) {
+      return;
+    }
+
+    updateNotes((prev) => ({
+      ...prev,
+      ...Object.fromEntries(
+        room.revealedLeftoverCards.map((c: Card) => [c.name, "seen"]),
+      ),
+    }));
+  }, [
+    room?.leftoverCardsVisible,
+    room?.revealedLeftoverCards.map((c) => c.id).join("|"),
+  ]);
+
+  useEffect(() => {
     showChatRef.current = showChat;
     if (showChat) setHasUnreadChat(false);
   }, [showChat]);
@@ -393,6 +409,9 @@ function App() {
   }
   function startGame() {
     socket.emit("game:start");
+  }
+  function setLeftoverVisibility(visible: boolean) {
+    socket.emit("room:set-leftover-visibility", { visible });
   }
   function roll() {
     socket.emit("game:roll");
@@ -606,6 +625,22 @@ function App() {
         >
           {bgmEnabled ? "BGM 끄기" : "BGM 켜기"}
         </button>
+        {room.status === "waiting" && me?.isHost && (
+          <div className="leftoverOption" aria-label="숨김 카드 공개 여부">
+            <button
+              className={room.leftoverCardsVisible ? "selected" : "secondary"}
+              onClick={() => setLeftoverVisibility(true)}
+            >
+              숨김카드 공개
+            </button>
+            <button
+              className={!room.leftoverCardsVisible ? "selected" : "secondary"}
+              onClick={() => setLeftoverVisibility(false)}
+            >
+              숨기기
+            </button>
+          </div>
+        )}
 
         <audio id="bgm" src="/bgm.mp3" loop />
         {room.status === "waiting" && me?.isHost && (
@@ -859,6 +894,21 @@ function App() {
               ))}
             </div>
           </section>
+          {room.leftoverCardsVisible && room.revealedLeftoverCards.length > 0 && (
+            <section className="panel revealed">
+              <h2>공개된 숨김 카드</h2>
+              <p className="hint">
+                게임 시작 전에 공개로 설정되어 모두에게 보이는 카드입니다.
+              </p>
+              <div className="cardGrid">
+                {room.revealedLeftoverCards.map((c) => (
+                  <span className={`card ${c.type}`} key={c.id}>
+                    {c.name}
+                  </span>
+                ))}
+              </div>
+            </section>
+          )}
           {isMyTurn &&
             !me?.eliminated &&
             !me?.finalAccused &&

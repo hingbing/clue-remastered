@@ -59,7 +59,9 @@ export interface PublicRoomState {
   hasRolled: boolean;
   hasSuggested: boolean;
   pendingDisprove: PendingDisprovePublic | null;
+  leftoverCardsVisible: boolean;
   leftoverCardCount: number;
+  revealedLeftoverCards: Card[];
   firstRolls: Array<{ playerId: string; nickname: string; total: number }>;
   bonusMessage: string | null;
   pendingBonusAction: {
