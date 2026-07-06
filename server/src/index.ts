@@ -2,6 +2,7 @@ import express from "express";
 import cors from "cors";
 import http from "http";
 import { Server, Socket } from "socket.io";
+import { registerAbraca } from "./abraca.js";
 import {
   allCards,
   characters,
@@ -90,6 +91,8 @@ const httpServer = http.createServer(app);
 const io = new Server(httpServer, {
   cors: { origin: allowedOrigin, methods: ["GET", "POST"], credentials: true },
 });
+
+registerAbraca(io);
 
 const roomsMap = new Map<string, Room>();
 const socketRoomMap = new Map<string, string>();
