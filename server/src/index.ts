@@ -95,6 +95,449 @@ const roomsMap = new Map<string, Room>();
 const socketRoomMap = new Map<string, string>();
 const socketPlayerMap = new Map<string, string>();
 
+type AbracaSpellNumber = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
+type AbracaStatus = "waiting" | "playing" | "round-end" | "game-over";
+
+type AbracaStone = {
+  id: string;
+  value: AbracaSpellNumber;
+  origin: "deck" | "secret";
+};
+
+type AbracaPublicStone = {
+  id: string;
+  value: AbracaSpellNumber | null;
+  origin: "deck" | "secret";
+};
+
+type AbracaPlayer = {
+  id: string;
+  socketId: string | null;
+  nickname: string;
+  color: string;
+  isHost: boolean;
+  connected: boolean;
+  hp: number;
+  score: number;
+  hand: AbracaStone[];
+  secretStones: AbracaStone[];
+  eliminated: boolean;
+  disconnectTimer?: NodeJS.Timeout;
+};
+
+type AbracaRoom = {
+  roomCode: string;
+  status: AbracaStatus;
+  players: AbracaPlayer[];
+  drawPile: AbracaStone[];
+  secretPile: AbracaStone[];
+  discardPile: AbracaStone[];
+  currentTurnIndex: number;
+  round: number;
+  logs: string[];
+  roundSummary: string[];
+  winnerIds: string[];
+};
+
+type AbracaRoundEndReason =
+  | { type: "elimination"; playerId: string }
+  | { type: "self-destruct"; playerId: string }
+  | { type: "empty-hand"; playerId: string };
+
+const abracaRoomsMap = new Map<string, AbracaRoom>();
+const abracaSocketRoomMap = new Map<string, string>();
+const abracaSocketPlayerMap = new Map<string, string>();
+
+const ABRACA_COLORS = ["#ef4444", "#3b82f6", "#22c55e", "#f59e0b", "#a855f7"];
+const ABRACA_STARTING_HP = 6;
+const ABRACA_MAX_HP = 6;
+const ABRACA_STARTING_HAND = 5;
+const ABRACA_SECRET_STONE_COUNT = 4;
+const ABRACA_TARGET_SCORE = 8;
+
+const abracaSpellNames: Record<AbracaSpellNumber, string> = {
+  1: "용용이의 분노",
+  2: "어둠의 방랑자",
+  3: "기분 좋은 바람",
+  4: "부엉부엉 통신",
+  5: "번개 폭풍",
+  6: "눈보라 강타",
+  7: "불덩이 작렬",
+  8: "마법 물약",
+};
+
+function makeAbracaRoomCode(): string {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let code = "";
+
+  for (let i = 0; i < 6; i += 1) {
+    code += chars[Math.floor(Math.random() * chars.length)];
+  }
+
+  return roomsMap.has(code) || abracaRoomsMap.has(code)
+    ? makeAbracaRoomCode()
+    : code;
+}
+
+function abracaRollDie() {
+  return Math.floor(Math.random() * 6) + 1;
+}
+
+function abracaHeal(hp: number, amount: number) {
+  return Math.min(ABRACA_MAX_HP, hp + amount);
+}
+
+function abracaDamage(hp: number, amount: number) {
+  return Math.max(0, hp - amount);
+}
+
+function createAbracaDeck() {
+  const deck: AbracaStone[] = [];
+  let stoneId = 1;
+
+  for (
+    let value = 1 as AbracaSpellNumber;
+    value <= 8;
+    value = (value + 1) as AbracaSpellNumber
+  ) {
+    for (let count = 0; count < value; count += 1) {
+      deck.push({
+        id: `abraca_stone_${stoneId++}`,
+        value,
+        origin: "deck",
+      });
+    }
+  }
+
+  return shuffle(deck);
+}
+
+function addAbracaLog(room: AbracaRoom, message: string) {
+  const line = `[${new Date().toLocaleTimeString("ko-KR", {
+    hour: "2-digit",
+    minute: "2-digit",
+  })}] ${message}`;
+
+  room.logs.push(line);
+  if (room.logs.length > 100) room.logs.shift();
+}
+
+function createAbracaPlayer(
+  socket: Socket,
+  nickname: string,
+  index: number,
+  isHost: boolean,
+): AbracaPlayer {
+  return {
+    id: id("abraca_player"),
+    socketId: socket.id,
+    nickname,
+    color: ABRACA_COLORS[index % ABRACA_COLORS.length],
+    isHost,
+    connected: true,
+    hp: ABRACA_STARTING_HP,
+    score: 0,
+    hand: [],
+    secretStones: [],
+    eliminated: false,
+  };
+}
+
+function publicAbracaStone(
+  stone: AbracaStone,
+  visible: boolean,
+): AbracaPublicStone {
+  return {
+    id: stone.id,
+    value: visible ? stone.value : null,
+    origin: stone.origin,
+  };
+}
+
+function publicAbracaRoom(room: AbracaRoom, viewerId: string) {
+  const current =
+    room.status === "playing" ? room.players[room.currentTurnIndex] : null;
+
+  return {
+    roomCode: room.roomCode,
+    status: room.status,
+    players: room.players.map((player) => {
+      const isViewer = player.id === viewerId;
+
+      return {
+        id: player.id,
+        nickname: player.nickname,
+        color: player.color,
+        hp: player.hp,
+        score: player.score,
+        connected: player.connected,
+        isHost: player.isHost,
+        eliminated: player.eliminated,
+
+        // 내 돌은 숨김, 남의 돌은 보임
+        hand: player.hand.map((stone) => publicAbracaStone(stone, !isViewer)),
+
+        // 내가 가져온 비밀의 돌만 보임, 남의 비밀의 돌은 숨김
+        secretStones: player.secretStones.map((stone) =>
+          publicAbracaStone(stone, isViewer),
+        ),
+      };
+    }),
+    currentTurnPlayerId: current?.id ?? null,
+    round: room.round,
+    drawPileCount: room.drawPile.length,
+    secretPileCount: room.secretPile.length,
+    discardPileCount: room.discardPile.length,
+    logs: room.logs,
+    roundSummary: room.roundSummary,
+    winnerIds: room.winnerIds,
+  };
+}
+
+function emitAbracaRoom(room: AbracaRoom) {
+  for (const player of room.players) {
+    if (!player.socketId) continue;
+
+    io.to(player.socketId).emit(
+      "abraca:room:state",
+      publicAbracaRoom(room, player.id),
+    );
+  }
+}
+
+function attachAbracaSocket(
+  room: AbracaRoom,
+  player: AbracaPlayer,
+  socket: Socket,
+) {
+  if (player.disconnectTimer) clearTimeout(player.disconnectTimer);
+
+  player.socketId = socket.id;
+  player.connected = true;
+
+  abracaSocketRoomMap.set(socket.id, room.roomCode);
+  abracaSocketPlayerMap.set(socket.id, player.id);
+
+  socket.join(`abraca:${room.roomCode}`);
+}
+
+function findAbracaRoomBySocket(socket: Socket) {
+  const roomCode = abracaSocketRoomMap.get(socket.id);
+  if (!roomCode) return null;
+  return abracaRoomsMap.get(roomCode) ?? null;
+}
+
+function findAbracaPlayer(room: AbracaRoom, socket: Socket) {
+  const playerId = abracaSocketPlayerMap.get(socket.id);
+  if (!playerId) return null;
+  return room.players.find((p) => p.id === playerId) ?? null;
+}
+
+function getAbracaLeftIndex(index: number, total: number) {
+  return (index - 1 + total) % total;
+}
+
+function getAbracaRightIndex(index: number, total: number) {
+  return (index + 1) % total;
+}
+
+function getNextAbracaLivingIndex(room: AbracaRoom, fromIndex: number) {
+  let idx = fromIndex;
+
+  for (let i = 0; i < room.players.length; i += 1) {
+    idx = (idx + 1) % room.players.length;
+    if (!room.players[idx].eliminated) return idx;
+  }
+
+  return fromIndex;
+}
+
+function scoreAbracaRound(room: AbracaRoom, reason: AbracaRoundEndReason) {
+  const summary: string[] = [];
+
+  for (const player of room.players) {
+    player.eliminated = player.hp <= 0;
+
+    if (player.eliminated) {
+      summary.push(`${player.nickname}: 탈락 → 0점`);
+      continue;
+    }
+
+    let base = 1;
+
+    if (reason.type === "empty-hand" && reason.playerId === player.id) {
+      base = 3;
+    }
+
+    if (reason.type === "elimination" && reason.playerId === player.id) {
+      base = 3;
+    }
+
+    if (reason.type === "self-destruct") {
+      base = 1;
+    }
+
+    const secretBonus = player.secretStones.length;
+    const gained = base + secretBonus;
+
+    player.score += gained;
+
+    summary.push(
+      `${player.nickname}: 기본 ${base}점 + 비밀의 돌 ${secretBonus}점 = ${gained}점 (누적 ${player.score}점)`,
+    );
+  }
+
+  room.roundSummary = summary;
+
+  const maxScore = Math.max(...room.players.map((p) => p.score));
+  room.winnerIds = room.players
+    .filter((p) => p.score >= ABRACA_TARGET_SCORE && p.score === maxScore)
+    .map((p) => p.id);
+
+  room.status = room.winnerIds.length > 0 ? "game-over" : "round-end";
+}
+
+function setupAbracaRound(room: AbracaRoom) {
+  const deck = createAbracaDeck();
+
+  room.players.forEach((player) => {
+    player.hp = ABRACA_STARTING_HP;
+    player.hand = [];
+    player.secretStones = [];
+    player.eliminated = false;
+
+    player.hand = deck.splice(0, ABRACA_STARTING_HAND);
+  });
+
+  room.secretPile = deck.splice(0, ABRACA_SECRET_STONE_COUNT).map((stone) => ({
+    ...stone,
+    origin: "secret",
+  }));
+
+  room.drawPile = deck;
+  room.discardPile = [];
+  room.roundSummary = [];
+  room.winnerIds = [];
+
+  const firstRolls = room.players.map((player) => ({
+    playerId: player.id,
+    nickname: player.nickname,
+    value: abracaRollDie(),
+  }));
+
+  const max = Math.max(...firstRolls.map((r) => r.value));
+  const first = firstRolls.find((r) => r.value === max)!;
+
+  room.currentTurnIndex = Math.max(
+    0,
+    room.players.findIndex((p) => p.id === first.playerId),
+  );
+
+  room.status = "playing";
+
+  addAbracaLog(
+    room,
+    `라운드 ${room.round} 시작. 선공 주사위: ${firstRolls
+      .map((r) => `${r.nickname}(${r.value})`)
+      .join(", ")} → ${first.nickname} 선공`,
+  );
+}
+
+function nextAbracaTurn(room: AbracaRoom) {
+  room.currentTurnIndex = getNextAbracaLivingIndex(room, room.currentTurnIndex);
+  const current = room.players[room.currentTurnIndex];
+
+  addAbracaLog(room, `${current.nickname}님의 차례입니다.`);
+}
+
+function abracaTurnError(socket: Socket, room: AbracaRoom) {
+  const player = findAbracaPlayer(room, socket);
+
+  if (!player) return "플레이어 정보를 찾을 수 없습니다.";
+  if (room.status !== "playing") return "진행 중인 라운드가 아닙니다.";
+  if (player.eliminated) return "탈락한 플레이어는 행동할 수 없습니다.";
+  if (room.players[room.currentTurnIndex]?.id !== player.id)
+    return "지금은 내 턴이 아닙니다.";
+
+  return null;
+}
+
+function leaveAbracaPlayer(socket: Socket) {
+  const roomCode = abracaSocketRoomMap.get(socket.id);
+  const playerId = abracaSocketPlayerMap.get(socket.id);
+
+  abracaSocketRoomMap.delete(socket.id);
+  abracaSocketPlayerMap.delete(socket.id);
+
+  if (!roomCode || !playerId) return;
+
+  const room = abracaRoomsMap.get(roomCode);
+  if (!room) return;
+
+  const player = room.players.find((p) => p.id === playerId);
+  if (!player) return;
+
+  if (player.disconnectTimer) clearTimeout(player.disconnectTimer);
+
+  const wasHost = player.isHost;
+  room.players = room.players.filter((p) => p.id !== playerId);
+  socket.leave(`abraca:${roomCode}`);
+
+  socket.emit("abraca:room:left");
+
+  if (room.players.length === 0) {
+    abracaRoomsMap.delete(roomCode);
+    return;
+  }
+
+  if (wasHost) room.players[0].isHost = true;
+  if (room.currentTurnIndex >= room.players.length) room.currentTurnIndex = 0;
+
+  addAbracaLog(room, `${player.nickname}님이 방을 나갔습니다.`);
+  emitAbracaRoom(room);
+}
+
+function handleAbracaDisconnect(socket: Socket) {
+  const roomCode = abracaSocketRoomMap.get(socket.id);
+  const playerId = abracaSocketPlayerMap.get(socket.id);
+
+  abracaSocketRoomMap.delete(socket.id);
+  abracaSocketPlayerMap.delete(socket.id);
+
+  if (!roomCode || !playerId) return;
+
+  const room = abracaRoomsMap.get(roomCode);
+  const player = room?.players.find((p) => p.id === playerId);
+
+  if (!room || !player) return;
+
+  player.connected = false;
+  player.socketId = null;
+
+  player.disconnectTimer = setTimeout(() => {
+    const freshRoom = abracaRoomsMap.get(roomCode);
+    const freshPlayer = freshRoom?.players.find((p) => p.id === playerId);
+
+    if (!freshRoom || !freshPlayer || freshPlayer.connected) return;
+
+    freshRoom.players = freshRoom.players.filter((p) => p.id !== playerId);
+
+    if (freshRoom.players.length === 0) {
+      abracaRoomsMap.delete(roomCode);
+      return;
+    }
+
+    addAbracaLog(
+      freshRoom,
+      `${freshPlayer.nickname}님이 연결 종료로 퇴장했습니다.`,
+    );
+
+    emitAbracaRoom(freshRoom);
+  }, 60_000);
+
+  emitAbracaRoom(room);
+}
+
 function id(prefix: string) {
   return `${prefix}_${Math.random().toString(36).slice(2, 10)}_${Date.now().toString(36)}`;
 }
@@ -314,7 +757,9 @@ function matchingCards(player: Player, suggestion: Suggestion) {
 }
 
 function canTakeFinalAccusationTurn(room: Room, player: Player) {
-  return !player.eliminated && !player.finalAccused && player.id !== room.winnerId;
+  return (
+    !player.eliminated && !player.finalAccused && player.id !== room.winnerId
+  );
 }
 
 function nextFinalAccuserIndex(room: Room) {
@@ -589,12 +1034,420 @@ io.on("connection", (socket) => {
 
   socket.on("room:leave", () => leavePlayer(socket));
 
+  socket.on("abraca:room:create", ({ nickname }: { nickname: string }) => {
+    const clean = String(nickname ?? "")
+      .trim()
+      .slice(0, 16);
+
+    if (!clean) {
+      return socket.emit("abraca:error", {
+        message: "닉네임을 입력해주세요.",
+      });
+    }
+
+    const roomCode = makeAbracaRoomCode();
+    const player = createAbracaPlayer(socket, clean, 0, true);
+
+    const room: AbracaRoom = {
+      roomCode,
+      status: "waiting",
+      players: [player],
+      drawPile: [],
+      secretPile: [],
+      discardPile: [],
+      currentTurnIndex: 0,
+      round: 1,
+      logs: [],
+      roundSummary: [],
+      winnerIds: [],
+    };
+
+    abracaRoomsMap.set(roomCode, room);
+    attachAbracaSocket(room, player, socket);
+    addAbracaLog(room, "아브라카왓 방이 생성되었습니다.");
+
+    socket.emit("abraca:room:created", {
+      roomCode,
+      playerId: player.id,
+      roomState: publicAbracaRoom(room, player.id),
+    });
+
+    emitAbracaRoom(room);
+  });
+
+  socket.on(
+    "abraca:room:join",
+    ({ roomCode, nickname }: { roomCode: string; nickname: string }) => {
+      const code = String(roomCode ?? "")
+        .trim()
+        .toUpperCase();
+      const clean = String(nickname ?? "")
+        .trim()
+        .slice(0, 16);
+
+      const room = abracaRoomsMap.get(code);
+
+      if (!room) {
+        return socket.emit("abraca:error", {
+          message: "존재하지 않는 방 코드입니다.",
+        });
+      }
+
+      if (!clean) {
+        return socket.emit("abraca:error", {
+          message: "닉네임을 입력해주세요.",
+        });
+      }
+
+      if (room.status !== "waiting") {
+        return socket.emit("abraca:error", {
+          message: "이미 시작된 방입니다.",
+        });
+      }
+
+      if (room.players.length >= 5) {
+        return socket.emit("abraca:error", {
+          message: "아브라카왓은 최대 5명까지 참가할 수 있습니다.",
+        });
+      }
+
+      const player = createAbracaPlayer(
+        socket,
+        clean,
+        room.players.length,
+        false,
+      );
+      room.players.push(player);
+
+      attachAbracaSocket(room, player, socket);
+      addAbracaLog(room, `${clean}님이 참가했습니다.`);
+
+      socket.emit("abraca:room:joined", {
+        roomCode: room.roomCode,
+        playerId: player.id,
+        roomState: publicAbracaRoom(room, player.id),
+      });
+
+      emitAbracaRoom(room);
+    },
+  );
+
+  socket.on(
+    "abraca:room:rejoin",
+    ({ roomCode, playerId }: { roomCode: string; playerId: string }) => {
+      const room = abracaRoomsMap.get(String(roomCode ?? "").toUpperCase());
+      const player = room?.players.find((p) => p.id === playerId);
+
+      if (!room || !player) {
+        return socket.emit("abraca:error", {
+          message: "이전 아브라카왓 방으로 재접속하지 못했습니다.",
+        });
+      }
+
+      attachAbracaSocket(room, player, socket);
+      addAbracaLog(room, `${player.nickname}님이 재접속했습니다.`);
+
+      socket.emit("abraca:room:joined", {
+        roomCode: room.roomCode,
+        playerId: player.id,
+        roomState: publicAbracaRoom(room, player.id),
+      });
+
+      emitAbracaRoom(room);
+    },
+  );
+
+  socket.on("abraca:room:leave", () => {
+    leaveAbracaPlayer(socket);
+  });
+
+  socket.on("abraca:game:start", () => {
+    const room = findAbracaRoomBySocket(socket);
+
+    if (!room) {
+      return socket.emit("abraca:error", {
+        message: "방에 먼저 입장해주세요.",
+      });
+    }
+
+    const player = findAbracaPlayer(room, socket);
+
+    if (!player?.isHost) {
+      return socket.emit("abraca:error", {
+        message: "방장만 게임을 시작할 수 있습니다.",
+      });
+    }
+
+    if (room.players.length < 2) {
+      return socket.emit("abraca:error", {
+        message: "2명 이상이어야 시작할 수 있습니다.",
+      });
+    }
+
+    room.round = 1;
+    room.logs = [];
+    room.players.forEach((p) => {
+      p.score = 0;
+    });
+
+    setupAbracaRound(room);
+    emitAbracaRoom(room);
+  });
+
+  socket.on("abraca:game:next-round", () => {
+    const room = findAbracaRoomBySocket(socket);
+
+    if (!room) {
+      return socket.emit("abraca:error", {
+        message: "방에 먼저 입장해주세요.",
+      });
+    }
+
+    const player = findAbracaPlayer(room, socket);
+
+    if (!player?.isHost) {
+      return socket.emit("abraca:error", {
+        message: "방장만 다음 라운드를 시작할 수 있습니다.",
+      });
+    }
+
+    if (room.status !== "round-end") {
+      return socket.emit("abraca:error", {
+        message: "라운드 종료 상태에서만 다음 라운드를 시작할 수 있습니다.",
+      });
+    }
+
+    room.round += 1;
+    setupAbracaRound(room);
+    emitAbracaRoom(room);
+  });
+
+  socket.on("abraca:spell:cast", ({ spell }: { spell: AbracaSpellNumber }) => {
+    const room = findAbracaRoomBySocket(socket);
+
+    if (!room) {
+      return socket.emit("abraca:error", {
+        message: "방에 먼저 입장해주세요.",
+      });
+    }
+
+    const err = abracaTurnError(socket, room);
+    if (err) {
+      return socket.emit("abraca:error", { message: err });
+    }
+
+    if (![1, 2, 3, 4, 5, 6, 7, 8].includes(Number(spell))) {
+      return socket.emit("abraca:error", {
+        message: "존재하지 않는 주문입니다.",
+      });
+    }
+
+    const active = room.players[room.currentTurnIndex];
+    const handIndex = active.hand.findIndex((stone) => stone.value === spell);
+
+    addAbracaLog(
+      room,
+      `${active.nickname}님이 ${spell}번 "${abracaSpellNames[spell]}" 주문을 외웠습니다.`,
+    );
+
+    let roundEndReason: AbracaRoundEndReason | null = null;
+
+    if (handIndex === -1) {
+      if (spell === 1) {
+        const die = abracaRollDie();
+        active.hp = abracaDamage(active.hp, die);
+
+        addAbracaLog(
+          room,
+          `실패! 1번 주문 실패로 주사위 ${die}만큼 생명력을 잃었습니다. (${active.hp})`,
+        );
+      } else {
+        active.hp = abracaDamage(active.hp, 1);
+
+        addAbracaLog(
+          room,
+          `실패! ${active.nickname}님 앞에 ${spell}번 돌이 없습니다. 생명력 1 감소. (${active.hp})`,
+        );
+      }
+
+      if (active.hp <= 0) {
+        active.eliminated = true;
+        roundEndReason = { type: "self-destruct", playerId: active.id };
+        addAbracaLog(room, `${active.nickname}님이 자폭으로 탈락했습니다.`);
+      }
+    } else {
+      const usedStone = active.hand.splice(handIndex, 1)[0];
+      room.discardPile.push(usedStone);
+
+      if (spell === 1) {
+        const die = abracaRollDie();
+
+        room.players.forEach((p) => {
+          if (p.id !== active.id && !p.eliminated) {
+            p.hp = abracaDamage(p.hp, die);
+          }
+        });
+
+        addAbracaLog(
+          room,
+          `성공! 주사위 ${die}. 다른 모든 플레이어 생명력 ${die} 감소.`,
+        );
+      }
+
+      if (spell === 2) {
+        room.players.forEach((p) => {
+          if (p.id !== active.id && !p.eliminated) {
+            p.hp = abracaDamage(p.hp, 1);
+          }
+        });
+
+        active.hp = abracaHeal(active.hp, 1);
+
+        addAbracaLog(
+          room,
+          `성공! 다른 모든 플레이어 생명력 1 감소, ${active.nickname}님 생명력 1 회복.`,
+        );
+      }
+
+      if (spell === 3) {
+        const die = abracaRollDie();
+        const amount = Math.min(die, 3);
+
+        active.hp = abracaHeal(active.hp, amount);
+
+        addAbracaLog(
+          room,
+          `성공! 주사위 ${die}. ${active.nickname}님이 ${amount} 회복했습니다.`,
+        );
+      }
+
+      if (spell === 4) {
+        if (room.secretPile.length > 0) {
+          const secret = room.secretPile.shift()!;
+          active.secretStones.push(secret);
+
+          addAbracaLog(
+            room,
+            `성공! ${active.nickname}님이 비밀의 돌 1개를 가져갔습니다.`,
+          );
+        } else {
+          addAbracaLog(room, "성공! 하지만 남은 비밀의 돌이 없습니다.");
+        }
+      }
+
+      if (spell === 5) {
+        const targets = Array.from(
+          new Set([
+            getAbracaLeftIndex(room.currentTurnIndex, room.players.length),
+            getAbracaRightIndex(room.currentTurnIndex, room.players.length),
+          ]),
+        );
+
+        targets.forEach((idx) => {
+          const target = room.players[idx];
+
+          if (target.id !== active.id && !target.eliminated) {
+            target.hp = abracaDamage(target.hp, 1);
+          }
+        });
+
+        addAbracaLog(room, "성공! 좌우 플레이어 생명력 1 감소.");
+      }
+
+      if (spell === 6) {
+        const left =
+          room.players[
+            getAbracaLeftIndex(room.currentTurnIndex, room.players.length)
+          ];
+
+        if (left.id !== active.id && !left.eliminated) {
+          left.hp = abracaDamage(left.hp, 1);
+        }
+
+        addAbracaLog(room, "성공! 왼쪽 플레이어 생명력 1 감소.");
+      }
+
+      if (spell === 7) {
+        const right =
+          room.players[
+            getAbracaRightIndex(room.currentTurnIndex, room.players.length)
+          ];
+
+        if (right.id !== active.id && !right.eliminated) {
+          right.hp = abracaDamage(right.hp, 1);
+        }
+
+        addAbracaLog(room, "성공! 오른쪽 플레이어 생명력 1 감소.");
+      }
+
+      if (spell === 8) {
+        active.hp = abracaHeal(active.hp, 1);
+
+        addAbracaLog(
+          room,
+          `성공! ${active.nickname}님이 생명력 1을 회복했습니다.`,
+        );
+      }
+
+      room.players.forEach((p) => {
+        if (p.hp <= 0) {
+          p.hp = 0;
+          p.eliminated = true;
+        }
+      });
+
+      const eliminatedPlayers = room.players.filter((p) => p.eliminated);
+
+      if (active.hand.length === 0) {
+        roundEndReason = { type: "empty-hand", playerId: active.id };
+        addAbracaLog(
+          room,
+          `${active.nickname}님이 자신의 마법의 돌을 모두 사용했습니다.`,
+        );
+      } else if (eliminatedPlayers.length > 0) {
+        if (eliminatedPlayers.some((p) => p.id !== active.id)) {
+          roundEndReason = { type: "elimination", playerId: active.id };
+          addAbracaLog(
+            room,
+            `${active.nickname}님의 주문으로 탈락자가 발생했습니다.`,
+          );
+        } else if (active.eliminated) {
+          roundEndReason = { type: "self-destruct", playerId: active.id };
+          addAbracaLog(room, `${active.nickname}님이 자폭으로 탈락했습니다.`);
+        }
+      }
+    }
+
+    if (roundEndReason) {
+      scoreAbracaRound(room, roundEndReason);
+      emitAbracaRoom(room);
+      return;
+    }
+
+    while (
+      active.hand.length < ABRACA_STARTING_HAND &&
+      room.drawPile.length > 0
+    ) {
+      active.hand.push(room.drawPile.shift()!);
+    }
+
+    addAbracaLog(
+      room,
+      `${active.nickname}님 차례 종료. 손패 ${active.hand.length}개.`,
+    );
+
+    nextAbracaTurn(room);
+    emitAbracaRoom(room);
+  });
+
   socket.on(
     "room:set-leftover-visibility",
     ({ visible }: { visible?: boolean } = {}) => {
       const room = findBySocket(socket);
       if (!room)
-        return socket.emit("game:error", { message: "방에 먼저 입장해주세요." });
+        return socket.emit("game:error", {
+          message: "방에 먼저 입장해주세요.",
+        });
       const player = findPlayer(room, socket);
       if (!player?.isHost)
         return socket.emit("game:error", {
@@ -858,7 +1711,11 @@ io.on("connection", (socket) => {
     if (!disprover) {
       p.failedNoDisproveCount += 1;
 
-      if (!room.leftoverCardsVisible && room.leftoverCards.length > 0 && p.socketId) {
+      if (
+        !room.leftoverCardsVisible &&
+        room.leftoverCards.length > 0 &&
+        p.socketId
+      ) {
         io.to(p.socketId).emit("game:leftover-choice-needed", {
           count: room.leftoverCards.length,
         });
@@ -1267,6 +2124,8 @@ io.on("connection", (socket) => {
   });
 
   socket.on("disconnect", () => {
+    handleAbracaDisconnect(socket);
+
     const roomCode = socketRoomMap.get(socket.id);
     const playerId = socketPlayerMap.get(socket.id);
     socketRoomMap.delete(socket.id);

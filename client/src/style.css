@@ -558,3 +558,472 @@ select {
   background: #35271b;
   border-radius: 14px;
 }
+
+.gameSelect {
+  display: grid;
+  gap: 14px;
+  margin-top: 24px;
+}
+
+.gameSelect button {
+  width: 100%;
+  font-size: 20px;
+  padding: 16px;
+}
+
+.gameSelect {
+  display: grid;
+  gap: 14px;
+  margin-top: 24px;
+}
+
+.gameSelect button {
+  width: 100%;
+  font-size: 20px;
+  padding: 16px;
+}
+
+.abracaWrap {
+  padding: 16px;
+  display: grid;
+  gap: 16px;
+}
+
+.abracaSetup {
+  width: min(900px, 92vw);
+  margin: 0 auto;
+}
+
+.abracaGrid {
+  display: grid;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.abracaPlayersEditor {
+  display: grid;
+  gap: 10px;
+  margin: 18px 0;
+}
+
+.abracaPlayerEditor {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.abracaColorDot {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+  border: 1px solid #fff8;
+}
+
+.abracaRuleBox {
+  margin: 18px 0;
+  padding: 14px;
+  border: 1px solid #6d5438;
+  border-radius: 14px;
+  background: #2b2118;
+}
+
+.abracaRuleBox ul {
+  margin: 8px 0 0;
+  padding-left: 18px;
+}
+
+.abracaTopbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  background: #241a13;
+  border: 1px solid #5b432e;
+  border-radius: 18px;
+  padding: 16px;
+}
+
+.abracaTopbar h1 {
+  margin: 0 0 4px;
+  color: #ffd37a;
+}
+
+.abracaTopbar p {
+  margin: 0;
+}
+
+.abracaTopbarActions {
+  display: flex;
+  gap: 10px;
+  align-items: end;
+  flex-wrap: wrap;
+}
+
+.abracaTopbarActions label {
+  display: grid;
+  gap: 6px;
+}
+
+.abracaScoreBoard,
+.abracaBoardStats,
+.abracaActionPanel,
+.abracaRoundEnd,
+.abracaLogPanel {
+  background: #241a13;
+  border: 1px solid #5b432e;
+  border-radius: 18px;
+  padding: 16px;
+}
+
+.abracaScoreBoard h2,
+.abracaActionPanel h2,
+.abracaRoundEnd h2,
+.abracaLogPanel h2 {
+  margin-top: 0;
+  color: #ffd37a;
+}
+
+.abracaScoreTrack {
+  display: grid;
+  grid-template-columns: repeat(9, minmax(70px, 1fr));
+  gap: 8px;
+}
+
+.abracaScoreCell {
+  padding: 10px;
+  border-radius: 12px;
+  background: #302319;
+  min-height: 70px;
+}
+
+.abracaScoreCell b {
+  display: block;
+  margin-bottom: 6px;
+  color: #ffd37a;
+}
+
+.abracaScoreTokens {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.abracaToken {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2px solid #fff;
+}
+
+.abracaBoardStats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+.abracaStatCard {
+  background: #302319;
+  border-radius: 14px;
+  padding: 14px;
+}
+
+.abracaStatCard h3 {
+  margin-top: 0;
+  color: #ffd37a;
+}
+
+.abracaSecretRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.abracaPlayers {
+  display: grid;
+  gap: 14px;
+}
+
+.abracaPlayerCard {
+  background: #241a13;
+  border: 1px solid #5b432e;
+  border-radius: 18px;
+  padding: 16px;
+}
+
+.abracaPlayerCard.current {
+  border-color: #ffd37a;
+  box-shadow: 0 0 0 2px #ffd37a33;
+}
+
+.abracaPlayerCard.dead {
+  opacity: 0.65;
+}
+
+.abracaPlayerHead {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 14px;
+}
+
+.abracaIdentity {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.abracaIdentity h3 {
+  margin: 0;
+}
+
+.abracaIdentity p {
+  margin: 2px 0 0;
+  color: #c8b8a1;
+}
+
+.abracaCurrentBadge {
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: #ffd37a;
+  color: #1f160c;
+  font-weight: 800;
+}
+
+.abracaSection {
+  margin-top: 12px;
+}
+
+.abracaSection h4 {
+  margin: 0 0 10px;
+  color: #d7b16b;
+}
+
+.abracaStoneRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.abracaStone {
+  width: 112px;
+  background: #302319;
+  border-radius: 14px;
+  overflow: hidden;
+  border: 1px solid #5b432e;
+}
+
+.abracaStone img {
+  width: 100%;
+  height: 110px;
+  object-fit: cover;
+  display: block;
+  background: #1c140f;
+}
+
+.abracaStoneMeta {
+  padding: 8px;
+  display: grid;
+  gap: 2px;
+}
+
+.abracaStoneMeta b {
+  color: #ffd37a;
+  font-size: 13px;
+}
+
+.abracaStoneMeta span {
+  font-size: 12px;
+  color: #c9bca8;
+  line-height: 1.35;
+}
+
+.abracaActionPanel p {
+  margin-top: 0;
+}
+
+.abracaSpellGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(260px, 1fr));
+  gap: 12px;
+}
+
+.abracaSpellButton {
+  text-align: left;
+  box-shadow: none;
+  display: grid;
+  gap: 6px;
+}
+
+.abracaSpellButton b {
+  font-size: 15px;
+}
+
+.abracaSpellButton span {
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.abracaRoundEnd .abracaWinner {
+  font-size: 20px;
+  font-weight: 800;
+  color: #ffd37a;
+}
+
+.abracaSummary {
+  margin: 16px 0;
+  padding: 12px;
+  border-radius: 12px;
+  background: #302319;
+}
+
+.abracaSummary h3 {
+  margin-top: 0;
+  color: #ffd37a;
+}
+
+.abracaSummary p {
+  margin: 6px 0;
+}
+
+.abracaLogList {
+  display: grid;
+  gap: 8px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.abracaLogList p {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #302319;
+  line-height: 1.45;
+}
+
+@media (max-width: 980px) {
+  .abracaBoardStats {
+    grid-template-columns: 1fr;
+  }
+
+  .abracaSpellGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .abracaScoreTrack {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .abracaTopbar {
+    flex-direction: column;
+  }
+}
+
+.abracaLatestPanel {
+  position: sticky;
+  top: 10px;
+  z-index: 20;
+  background: linear-gradient(135deg, #3a2817, #1f160c);
+  border: 2px solid #ffd37a;
+  border-radius: 18px;
+  padding: 14px 16px;
+  box-shadow: 0 10px 30px #0008;
+}
+
+.abracaLatestPanel p {
+  margin: 6px 0 4px;
+  font-size: 18px;
+  font-weight: 800;
+  color: #fff2c7;
+  line-height: 1.45;
+}
+
+.abracaLatestPanel small {
+  display: block;
+  color: #c9bca8;
+  line-height: 1.4;
+}
+
+.abracaLatestLabel {
+  display: inline-block;
+  padding: 4px 9px;
+  border-radius: 999px;
+  background: #ffd37a;
+  color: #211407;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.abracaActionHead {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 14px;
+}
+
+.abracaActionHead h2 {
+  margin: 0 0 4px;
+}
+
+.abracaActionHead p {
+  margin: 0;
+}
+
+.abracaTurnMine,
+.abracaTurnWait {
+  padding: 10px 14px;
+  border-radius: 999px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.abracaTurnMine {
+  background: #ffd37a;
+  color: #1f160c;
+}
+
+.abracaTurnWait {
+  background: #3a2a1d;
+  color: #c9bca8;
+  border: 1px solid #6d5438;
+}
+
+.abracaSpellButton:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.abracaLogHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.abracaLogHeader h2 {
+  margin: 0;
+}
+
+@media (max-width: 720px) {
+  .abracaLatestPanel {
+    top: 6px;
+  }
+
+  .abracaLatestPanel p {
+    font-size: 15px;
+  }
+
+  .abracaActionHead {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .abracaTurnMine,
+  .abracaTurnWait {
+    width: 100%;
+    text-align: center;
+  }
+}
