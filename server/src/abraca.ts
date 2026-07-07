@@ -66,6 +66,7 @@ type Room = {
   lastResult: LastResult | null;
   turnChainMinSpell: SpellNumber | null;
   turnSuccessCount: number;
+  pendingSecretTakePlayerId: string | null;
 };
 
 type RoundEndReason =
@@ -168,11 +169,20 @@ function createBoardSlots(): BoardSlot[] {
 }
 
 function createSecretSlots(stones: Stone[]): SecretSlot[] {
-  return [0, 1, 2, 3].map((slotIndex) => ({
-    id: `secret_${slotIndex}`,
-    slotIndex,
-    stone: stones[slotIndex] ?? null,
-  }));
+  return [0, 1, 2, 3].map((slotIndex) => {
+    const stone = stones[slotIndex];
+
+    return {
+      id: `secret_${slotIndex}`,
+      slotIndex,
+      stone: stone
+        ? {
+            ...stone,
+            origin: "secret",
+          }
+        : null,
+    };
+  });
 }
 
 function addLog(room: Room, message: string) {
@@ -282,6 +292,7 @@ function publicRoom(room: Room, viewerId: string) {
     lastResult: room.lastResult,
     turnChainMinSpell: room.turnChainMinSpell,
     turnSuccessCount: room.turnSuccessCount,
+    pendingSecretTakePlayerId: room.pendingSecretTakePlayerId,
   };
 }
 
@@ -383,6 +394,7 @@ function setupRound(room: Room) {
   room.winnerIds = [];
   room.turnChainMinSpell = null;
   room.turnSuccessCount = 0;
+  room.pendingSecretTakePlayerId = null;
 
   const firstRolls = room.players.map((player) => ({
     playerId: player.id,
@@ -492,6 +504,7 @@ function scoreRound(room: Room, reason: RoundEndReason) {
 
   room.turnChainMinSpell = null;
   room.turnSuccessCount = 0;
+  room.pendingSecretTakePlayerId = null;
 
   setResult(
     room,
@@ -510,6 +523,12 @@ function turnError(socket: Socket, room: Room) {
   if (player.eliminated) return "탈락한 플레이어는 행동할 수 없습니다.";
   if (room.players[room.currentTurnIndex]?.id !== player.id)
     return "지금은 내 차례가 아닙니다.";
+  if (
+    room.pendingSecretTakePlayerId &&
+    room.pendingSecretTakePlayerId !== player.id
+  ) {
+    return "다른 플레이어가 비밀의 돌을 선택 중입니다.";
+  }
 
   return null;
 }
@@ -627,6 +646,7 @@ export function registerAbraca(io: Server) {
         lastResult: null,
         turnChainMinSpell: null,
         turnSuccessCount: 0,
+        pendingSecretTakePlayerId: null,
       };
 
       roomsMap.set(roomCode, room);
@@ -802,6 +822,12 @@ export function registerAbraca(io: Server) {
 
       const player = findPlayer(room, socket)!;
 
+      if (room.pendingSecretTakePlayerId) {
+        return socket.emit("abraca:error", {
+          message: "비밀의 돌을 먼저 선택해야 합니다.",
+        });
+      }
+
       if (room.turnSuccessCount <= 0) {
         return socket.emit("abraca:error", {
           message: "주문을 성공한 뒤에 턴을 넘길 수 있습니다.",
@@ -810,6 +836,52 @@ export function registerAbraca(io: Server) {
 
       setResult(room, "pass", `${player.nickname}님이 턴을 넘겼습니다.`);
       endTurn(room, player);
+      emitRoom(io, room);
+    });
+
+    socket.on("abraca:secret:take", ({ slotIndex }: { slotIndex: number }) => {
+      const room = findRoomBySocket(socket);
+
+      if (!room) {
+        return socket.emit("abraca:error", {
+          message: "방에 먼저 입장해주세요.",
+        });
+      }
+
+      const player = findPlayer(room, socket);
+
+      if (!player) {
+        return socket.emit("abraca:error", {
+          message: "플레이어 정보를 찾을 수 없습니다.",
+        });
+      }
+
+      if (room.pendingSecretTakePlayerId !== player.id) {
+        return socket.emit("abraca:error", {
+          message: "지금은 비밀의 돌을 선택할 수 없습니다.",
+        });
+      }
+
+      const slot = room.secretSlots.find((s) => s.slotIndex === slotIndex);
+
+      if (!slot || !slot.stone) {
+        return socket.emit("abraca:error", {
+          message: "선택할 수 없는 비밀의 돌입니다.",
+        });
+      }
+
+      player.secretStones.push(slot.stone);
+      slot.stone = null;
+      room.pendingSecretTakePlayerId = null;
+
+      setResult(
+        room,
+        "success",
+        `${player.nickname}님이 비밀의 돌 b${slotIndex + 1}을 가져왔습니다.`,
+        player.id,
+        4,
+      );
+
       emitRoom(io, room);
     });
 
@@ -830,7 +902,11 @@ export function registerAbraca(io: Server) {
           message: "존재하지 않는 주문입니다.",
         });
       }
-
+      if (room.pendingSecretTakePlayerId) {
+        return socket.emit("abraca:error", {
+          message: "비밀의 돌을 먼저 선택해야 합니다.",
+        });
+      }
       if (room.turnChainMinSpell !== null && spell < room.turnChainMinSpell) {
         return socket.emit("abraca:error", {
           message: `${room.turnChainMinSpell}번 이상 주문만 추가로 외울 수 있습니다.`,
@@ -925,16 +1001,15 @@ export function registerAbraca(io: Server) {
         }
 
         if (spell === 4) {
-          const secretSlot = room.secretSlots.find((slot) => slot.stone);
+          const hasSecretStone = room.secretSlots.some((slot) => slot.stone);
 
-          if (secretSlot?.stone) {
-            active.secretStones.push(secretSlot.stone);
-            secretSlot.stone = null;
+          if (hasSecretStone) {
+            room.pendingSecretTakePlayerId = active.id;
 
             setResult(
               room,
               "success",
-              `성공! ${active.nickname}님의 4번 ${spellNames[4]}. 비밀의 돌 1개를 가져왔습니다.`,
+              `성공! ${active.nickname}님의 4번 ${spellNames[4]}. 게임판의 비밀의 돌 b1~b4 중 하나를 선택하세요.`,
               active.id,
               spell,
             );

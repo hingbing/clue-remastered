@@ -1508,3 +1508,30 @@ select {
     height: 34px;
   }
 }
+
+.abracaBoardCell.secretSlot {
+  border: 1px solid #8b5cf6;
+  background: #23152f;
+  cursor: pointer;
+}
+
+button.abracaBoardCell {
+  padding: 0;
+  font: inherit;
+}
+
+.abracaBoardCell.secretSlot.selectable:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 0 0 2px #c084fc88;
+}
+
+.abracaBoardCell.secretSlot.used {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.abracaBoardCell.secretSlot img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}

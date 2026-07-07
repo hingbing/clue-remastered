@@ -49,8 +49,8 @@ type RoomState = {
   roomCode: string;
   status: "waiting" | "playing" | "round-end" | "game-over";
   players: PublicPlayer[];
-  boardSlots: PublicBoardSlot[];
-  secretSlots: PublicSecretSlot[];
+  boardSlots?: PublicBoardSlot[];
+  secretSlots?: PublicSecretSlot[];
   currentTurnPlayerId: string | null;
   round: number;
   drawPileCount: number;
@@ -61,6 +61,7 @@ type RoomState = {
   lastResult: LastResult | null;
   turnChainMinSpell: SpellNumber | null;
   turnSuccessCount: number;
+  pendingSecretTakePlayerId?: string | null;
 };
 
 const spellNames: Record<SpellNumber, string> = {
@@ -133,11 +134,15 @@ function StoneCard({
 }
 
 function AbracaBoard({
-  boardSlots,
-  secretSlots,
+  boardSlots = [],
+  secretSlots = [],
+  selectSecretStone,
+  canSelectSecretStone,
 }: {
-  boardSlots: PublicBoardSlot[];
-  secretSlots: PublicSecretSlot[];
+  boardSlots?: PublicBoardSlot[];
+  secretSlots?: PublicSecretSlot[];
+  selectSecretStone: (slotIndex: number) => void;
+  canSelectSecretStone: boolean;
 }) {
   function findBoardSlot(spell: SpellNumber, slotIndex: number) {
     return boardSlots.find(
@@ -185,13 +190,23 @@ function AbracaBoard({
       const secretSlot = findSecretSlot(secretIndex);
 
       return (
-        <div className="abracaBoardCell secretSlot">
+        <button
+          type="button"
+          className={`abracaBoardCell secretSlot ${
+            secretSlot?.stone ? "selectable" : "used"
+          }`}
+          disabled={!secretSlot?.stone || !canSelectSecretStone}
+          onClick={() => {
+            if (!secretSlot?.stone || !canSelectSecretStone) return;
+            selectSecretStone(secretIndex);
+          }}
+        >
           {secretSlot?.stone ? (
-            <img src={BACK_IMAGE} alt="비밀의 돌" />
+            <img src={BACK_IMAGE} alt={`비밀의 돌 ${secretIndex + 1}`} />
           ) : (
-            <span className="emptySlot">b</span>
+            <span className="emptySlot">b{secretIndex + 1}</span>
           )}
-        </div>
+        </button>
       );
     }
 
@@ -303,9 +318,7 @@ function AbracaWhatGame() {
     socket.on("abraca:room:left", handleLeft);
     socket.on("abraca:error", handleError);
 
-    if (!didRejoinRef.current) {
-      didRejoinRef.current = true;
-
+    socket.on("connect", () => {
       const savedRoom = sessionStorage.getItem("abraca_room_code");
       const savedPlayer = sessionStorage.getItem("abraca_player_id");
 
@@ -315,9 +328,10 @@ function AbracaWhatGame() {
           playerId: savedPlayer,
         });
       }
-    }
+    });
 
     return () => {
+      socket.off("connect");
       socket.off("abraca:room:created", handleCreated);
       socket.off("abraca:room:joined", handleJoined);
       socket.off("abraca:room:state", handleState);
@@ -358,11 +372,19 @@ function AbracaWhatGame() {
     socketRef.current?.emit("abraca:turn:pass");
   }
 
+  function selectSecretStone(slotIndex: number) {
+    socketRef.current?.emit("abraca:secret:take", { slotIndex });
+  }
+
   function canCast(spell: SpellNumber) {
     if (!isMyTurn) return false;
     if (!room) return false;
-    if (room.turnChainMinSpell === null) return true;
-    return spell >= room.turnChainMinSpell;
+
+    const minSpell = room.turnChainMinSpell ?? null;
+
+    if (minSpell === null) return true;
+
+    return spell >= minSpell;
   }
 
   if (!room) {
@@ -488,8 +510,10 @@ function AbracaWhatGame() {
             </section>
           ) : (
             <AbracaBoard
-              boardSlots={room.boardSlots}
-              secretSlots={room.secretSlots}
+              boardSlots={room.boardSlots ?? []}
+              secretSlots={room.secretSlots ?? []}
+              selectSecretStone={selectSecretStone}
+              canSelectSecretStone={room.pendingSecretTakePlayerId === playerId}
             />
           )}
 
@@ -518,6 +542,13 @@ function AbracaWhatGame() {
             <span>최근 주문 결과</span>
             <p>{room.lastResult?.message || "아직 주문 결과가 없습니다."}</p>
           </section>
+
+          {room.pendingSecretTakePlayerId === playerId && (
+            <section className="abracaInfoCard">
+              <h3>비밀의 돌 선택</h3>
+              <p>게임판의 b1~b4 중 back.png가 보이는 칸을 클릭하세요.</p>
+            </section>
+          )}
 
           <section className="abracaInfoCard">
             <h3>공급처</h3>
@@ -585,7 +616,7 @@ function AbracaWhatGame() {
                   <b>{currentPlayer?.nickname}님 차례 대기중</b>
                 )}
 
-                {room.turnChainMinSpell !== null && (
+                {room.turnChainMinSpell != null && (
                   <span>추가 주문 가능: {room.turnChainMinSpell}번 이상</span>
                 )}
               </div>
