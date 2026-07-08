@@ -93,6 +93,8 @@ const io = new Server(httpServer, {
 });
 
 registerAbraca(io);
+const registerLegacyAbracaHandlers =
+  process.env.LEGACY_ABRACA_HANDLERS === "true";
 
 const roomsMap = new Map<string, Room>();
 const socketRoomMap = new Map<string, string>();
@@ -1037,7 +1039,8 @@ io.on("connection", (socket) => {
 
   socket.on("room:leave", () => leavePlayer(socket));
 
-  socket.on("abraca:room:create", ({ nickname }: { nickname: string }) => {
+  if (registerLegacyAbracaHandlers) {
+    socket.on("abraca:room:create", ({ nickname }: { nickname: string }) => {
     const clean = String(nickname ?? "")
       .trim()
       .slice(0, 16);
@@ -1442,6 +1445,8 @@ io.on("connection", (socket) => {
     nextAbracaTurn(room);
     emitAbracaRoom(room);
   });
+
+  }
 
   socket.on(
     "room:set-leftover-visibility",

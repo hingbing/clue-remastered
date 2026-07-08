@@ -318,7 +318,9 @@ function AbracaWhatGame() {
     socket.on("abraca:room:left", handleLeft);
     socket.on("abraca:error", handleError);
 
-    socket.on("connect", () => {
+    if (!didRejoinRef.current) {
+      didRejoinRef.current = true;
+
       const savedRoom = sessionStorage.getItem("abraca_room_code");
       const savedPlayer = sessionStorage.getItem("abraca_player_id");
 
@@ -328,10 +330,9 @@ function AbracaWhatGame() {
           playerId: savedPlayer,
         });
       }
-    });
+    }
 
     return () => {
-      socket.off("connect");
       socket.off("abraca:room:created", handleCreated);
       socket.off("abraca:room:joined", handleJoined);
       socket.off("abraca:room:state", handleState);
