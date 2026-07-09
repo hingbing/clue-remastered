@@ -240,7 +240,7 @@ function AbracaWhatGame() {
   );
   const [room, setRoom] = useState<RoomState | null>(null);
   const [error, setError] = useState("");
-  const [showLogs, setShowLogs] = useState(false);
+  const [showLogs, setShowLogs] = useState(true);
 
   const me = useMemo(
     () => room?.players.find((p) => p.id === playerId) ?? null,
@@ -296,6 +296,7 @@ function AbracaWhatGame() {
       setPlayerId(playerId);
       setRoom(roomState);
       setError("");
+      setShowLogs(true);
 
       sessionStorage.setItem("abraca_room_code", roomCode);
       sessionStorage.setItem("abraca_player_id", playerId);
@@ -313,6 +314,7 @@ function AbracaWhatGame() {
       setPlayerId(playerId);
       setRoom(roomState);
       setError("");
+      setShowLogs(true);
 
       sessionStorage.setItem("abraca_room_code", roomCode);
       sessionStorage.setItem("abraca_player_id", playerId);

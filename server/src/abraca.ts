@@ -442,7 +442,7 @@ function refillHand(room: Room, player: Player) {
   );
 }
 
-function endTurn(room: Room, player: Player) {
+function endTurn(room: Room, player: Player, announceResult = true) {
   refillHand(room, player);
 
   room.turnChainMinSpell = null;
@@ -450,8 +450,15 @@ function endTurn(room: Room, player: Player) {
 
   room.currentTurnIndex = nextLivingIndex(room, room.currentTurnIndex);
   const nextPlayer = room.players[room.currentTurnIndex];
+  const message = `${nextPlayer.nickname}님의 차례입니다.`;
 
-  setResult(room, "info", `${nextPlayer.nickname}님의 차례입니다.`);
+  if (announceResult) {
+    setResult(room, "info", message);
+  } else {
+    addLog(room, message);
+  }
+
+  return nextPlayer;
 }
 
 function scoreRound(room: Room, reason: RoundEndReason) {
@@ -1188,7 +1195,15 @@ export function registerAbraca(io: Server) {
       }
 
       if (handIndex === -1) {
-        endTurn(room, active);
+        const failMessage = room.lastResult?.message ?? "";
+        const nextPlayer = endTurn(room, active, false);
+
+        room.lastResult = {
+          type: "fail",
+          playerId: active.id,
+          spell,
+          message: `${failMessage}\n${nextPlayer.nickname}님의 차례입니다.`,
+        };
         emitRoom(io, room);
         return;
       }
