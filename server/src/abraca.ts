@@ -2,6 +2,7 @@ import { Server, Socket } from "socket.io";
 
 type SpellNumber = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
 type AbracaStatus = "waiting" | "playing" | "round-end" | "game-over";
+type TurnChainMode = "gte" | "lte";
 
 type Stone = {
   id: string;
@@ -65,6 +66,7 @@ type Room = {
   winnerIds: string[];
   lastResult: LastResult | null;
   turnChainMinSpell: SpellNumber | null;
+  turnChainMode: TurnChainMode;
   turnSuccessCount: number;
   pendingSecretTakePlayerId: string | null;
 };
@@ -123,6 +125,10 @@ function shuffle<T>(arr: T[]) {
 
 function rollDie() {
   return Math.floor(Math.random() * 6) + 1;
+}
+
+function rollSmallDie() {
+  return Math.floor(Math.random() * 3) + 1;
 }
 
 function heal(hp: number, amount: number) {
@@ -291,6 +297,7 @@ function publicRoom(room: Room, viewerId: string) {
     winnerIds: room.winnerIds,
     lastResult: room.lastResult,
     turnChainMinSpell: room.turnChainMinSpell,
+    turnChainMode: room.turnChainMode,
     turnSuccessCount: room.turnSuccessCount,
     pendingSecretTakePlayerId: room.pendingSecretTakePlayerId,
   };
@@ -645,6 +652,7 @@ export function registerAbraca(io: Server) {
         winnerIds: [],
         lastResult: null,
         turnChainMinSpell: null,
+        turnChainMode: "gte",
         turnSuccessCount: 0,
         pendingSecretTakePlayerId: null,
       };
@@ -746,6 +754,41 @@ export function registerAbraca(io: Server) {
     socket.on("abraca:room:leave", () => {
       leavePlayer(io, socket);
     });
+
+    socket.on(
+      "abraca:chain-mode:set",
+      ({ mode }: { mode: TurnChainMode }) => {
+        const room = findRoomBySocket(socket);
+
+        if (!room) {
+          return socket.emit("abraca:error", {
+            message: "방에 먼저 입장해주세요.",
+          });
+        }
+
+        const player = findPlayer(room, socket);
+
+        if (!player?.isHost) {
+          return socket.emit("abraca:error", {
+            message: "방장만 추가주문 규칙을 바꿀 수 있습니다.",
+          });
+        }
+
+        if (mode !== "gte" && mode !== "lte") {
+          return socket.emit("abraca:error", {
+            message: "존재하지 않는 추가주문 규칙입니다.",
+          });
+        }
+
+        room.turnChainMode = mode;
+        setResult(
+          room,
+          "info",
+          `추가주문 규칙이 ${mode === "gte" ? "이상" : "이하"}으로 변경되었습니다.`,
+        );
+        emitRoom(io, room);
+      },
+    );
 
     socket.on("abraca:game:start", () => {
       const room = findRoomBySocket(socket);
@@ -907,9 +950,13 @@ export function registerAbraca(io: Server) {
           message: "비밀의 돌을 먼저 선택해야 합니다.",
         });
       }
-      if (room.turnChainMinSpell !== null && spell < room.turnChainMinSpell) {
+      if (
+        room.turnChainMinSpell !== null &&
+        ((room.turnChainMode === "gte" && spell < room.turnChainMinSpell) ||
+          (room.turnChainMode === "lte" && spell > room.turnChainMinSpell))
+      ) {
         return socket.emit("abraca:error", {
-          message: `${room.turnChainMinSpell}번 이상 주문만 추가로 외울 수 있습니다.`,
+          message: `${room.turnChainMinSpell}번 ${room.turnChainMode === "gte" ? "이상" : "이하"} 주문만 추가로 외울 수 있습니다.`,
         });
       }
 
@@ -920,7 +967,7 @@ export function registerAbraca(io: Server) {
 
       if (handIndex === -1) {
         if (spell === 1) {
-          const die = rollDie();
+          const die = rollSmallDie();
           active.hp = damage(active.hp, die);
 
           setResult(
@@ -952,7 +999,7 @@ export function registerAbraca(io: Server) {
         placeStoneOnBoard(room, usedStone, "used");
 
         if (spell === 1) {
-          const die = rollDie();
+          const die = rollSmallDie();
 
           room.players.forEach((p) => {
             if (p.id !== active.id && !p.eliminated) {
@@ -988,7 +1035,7 @@ export function registerAbraca(io: Server) {
         }
 
         if (spell === 3) {
-          const die = rollDie();
+          const die = rollSmallDie();
           active.hp = heal(active.hp, die);
 
           setResult(
@@ -1148,7 +1195,7 @@ export function registerAbraca(io: Server) {
 
       addLog(
         room,
-        `${active.nickname}님은 ${spell}번 이상 주문을 추가로 외우거나 턴을 넘길 수 있습니다.`,
+        `${active.nickname}님은 ${spell}번 ${room.turnChainMode === "gte" ? "이상" : "이하"} 주문을 추가로 외우거나 턴을 넘길 수 있습니다.`,
       );
 
       emitRoom(io, room);

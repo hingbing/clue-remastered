@@ -4,6 +4,7 @@ import { io } from "socket.io-client";
 const SERVER_URL = import.meta.env.VITE_SERVER_URL || "http://localhost:4000";
 
 type SpellNumber = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
+type TurnChainMode = "gte" | "lte";
 
 type PublicStone = {
   id: string;
@@ -60,6 +61,7 @@ type RoomState = {
   winnerIds: string[];
   lastResult: LastResult | null;
   turnChainMinSpell: SpellNumber | null;
+  turnChainMode: TurnChainMode;
   turnSuccessCount: number;
   pendingSecretTakePlayerId?: string | null;
 };
@@ -250,6 +252,28 @@ function AbracaWhatGame() {
     [room],
   );
 
+  const resultRanks = useMemo(() => {
+    if (!room) return [];
+
+    return [...room.players].sort(
+      (a, b) =>
+        b.score - a.score ||
+        b.hp - a.hp ||
+        a.nickname.localeCompare(b.nickname, "ko-KR"),
+    );
+  }, [room]);
+
+  const winnerNames = useMemo(() => {
+    if (!room) return "";
+
+    const winners =
+      room.winnerIds.length > 0
+        ? room.players.filter((player) => room.winnerIds.includes(player.id))
+        : resultRanks.slice(0, 1);
+
+    return winners.map((player) => player.nickname).join(", ");
+  }, [resultRanks, room]);
+
   const isMyTurn =
     !!room &&
     room.status === "playing" &&
@@ -361,6 +385,10 @@ function AbracaWhatGame() {
     socketRef.current?.emit("abraca:game:start");
   }
 
+  function setChainMode(mode: TurnChainMode) {
+    socketRef.current?.emit("abraca:chain-mode:set", { mode });
+  }
+
   function nextRound() {
     socketRef.current?.emit("abraca:game:next-round");
   }
@@ -385,7 +413,7 @@ function AbracaWhatGame() {
 
     if (minSpell === null) return true;
 
-    return spell >= minSpell;
+    return room.turnChainMode === "lte" ? spell <= minSpell : spell >= minSpell;
   }
 
   if (!room) {
@@ -444,6 +472,23 @@ function AbracaWhatGame() {
         <div className="abracaTopbarActions">
           {room.status === "waiting" && me?.isHost && (
             <button onClick={startGame}>게임 시작</button>
+          )}
+
+          {room.status === "waiting" && me?.isHost && (
+            <div className="abracaChainModeControl" aria-label="추가주문 규칙">
+              <button
+                className={room.turnChainMode === "gte" ? "active" : ""}
+                onClick={() => setChainMode("gte")}
+              >
+                추가주문 이상
+              </button>
+              <button
+                className={room.turnChainMode === "lte" ? "active" : ""}
+                onClick={() => setChainMode("lte")}
+              >
+                추가주문 이하
+              </button>
+            </div>
           )}
 
           {room.status === "round-end" && me?.isHost && (
@@ -618,7 +663,10 @@ function AbracaWhatGame() {
                 )}
 
                 {room.turnChainMinSpell != null && (
-                  <span>추가 주문 가능: {room.turnChainMinSpell}번 이상</span>
+                  <span>
+                    추가 주문 가능: {room.turnChainMinSpell}번{" "}
+                    {room.turnChainMode === "lte" ? "이하" : "이상"}
+                  </span>
                 )}
               </div>
 
@@ -668,6 +716,24 @@ function AbracaWhatGame() {
           )}
         </aside>
       </div>
+
+      {room.status === "game-over" && (
+        <div className="abracaWinOverlay" role="dialog" aria-modal="true">
+          <section className="abracaWinModal">
+            <span>게임 종료</span>
+            <h2>{winnerNames} 승리</h2>
+            <div className="abracaRankList">
+              {resultRanks.map((player, index) => (
+                <p key={player.id}>
+                  <b>{index + 1}등</b>
+                  <span>{player.nickname}</span>
+                  <em>{player.score}점</em>
+                </p>
+              ))}
+            </div>
+          </section>
+        </div>
+      )}
     </main>
   );
 }

@@ -1029,10 +1029,13 @@ select {
 }
 
 .abracaTable {
-  min-height: 100vh;
-  padding: 14px;
+  height: 100vh;
+  min-height: 0;
+  overflow: hidden;
+  padding: 8px;
   display: grid;
-  gap: 12px;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  gap: 8px;
   background:
     radial-gradient(circle at top, #493019 0, transparent 45%), #160f0a;
 }
@@ -1041,20 +1044,23 @@ select {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 12px;
-  padding: 14px 16px;
+  gap: 10px;
+  padding: 8px 10px;
   border: 1px solid #6d5438;
-  border-radius: 18px;
+  border-radius: 8px;
   background: #241a13;
 }
 
 .abracaTopbar h1 {
-  margin: 0 0 4px;
+  margin: 0 0 2px;
   color: #ffd37a;
+  font-size: 22px;
+  line-height: 1;
 }
 
 .abracaTopbar p {
   margin: 2px 0;
+  font-size: 13px;
 }
 
 .abracaTopbarActions {
@@ -1062,6 +1068,28 @@ select {
   gap: 8px;
   flex-wrap: wrap;
   justify-content: flex-end;
+}
+
+.abracaChainModeControl {
+  display: flex;
+  gap: 4px;
+  padding: 3px;
+  border: 1px solid #6d5438;
+  border-radius: 8px;
+  background: #160f0a;
+}
+
+.abracaChainModeControl button {
+  padding: 7px 9px;
+  border-radius: 6px;
+  background: transparent;
+  color: #d8c7ad;
+  border: 0;
+}
+
+.abracaChainModeControl button.active {
+  background: #ffd37a;
+  color: #211407;
 }
 
 .abracaToast {
@@ -1081,13 +1109,13 @@ select {
 .abracaScoreStrip {
   display: grid;
   grid-template-columns: repeat(9, 1fr);
-  gap: 8px;
+  gap: 5px;
 }
 
 .abracaScoreBox {
-  min-height: 54px;
-  padding: 8px;
-  border-radius: 12px;
+  min-height: 36px;
+  padding: 5px 6px;
+  border-radius: 8px;
   border: 1px solid #5b432e;
   background: #241a13;
 }
@@ -1105,51 +1133,56 @@ select {
 }
 
 .abracaScoreToken {
-  width: 17px;
-  height: 17px;
+  width: 12px;
+  height: 12px;
   border-radius: 50%;
-  border: 2px solid white;
+  border: 1px solid white;
 }
 
 .abracaMainLayout {
   display: grid;
-  grid-template-columns: minmax(660px, 1fr) 390px;
-  gap: 14px;
+  grid-template-columns: minmax(520px, 1fr) 340px;
+  gap: 8px;
   align-items: start;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .abracaCenterArea {
   display: grid;
-  gap: 12px;
+  gap: 8px;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .abracaBoardPanel,
 .abracaLobbyPanel,
 .abracaLogPanel {
   border: 1px solid #6d5438;
-  border-radius: 20px;
+  border-radius: 8px;
   background: #241a13;
-  padding: 16px;
+  padding: 8px;
 }
 
 .abracaBoardPanel h2,
 .abracaLobbyPanel h2,
 .abracaLogPanel h2 {
-  margin-top: 0;
+  margin: 0 0 6px;
   color: #ffd37a;
+  font-size: 15px;
 }
 
 .abracaBoardGrid {
-  width: min(100%, 880px);
+  width: min(100%, 760px, calc((100vh - 142px) * 1.1));
   margin: 0 auto;
   display: grid;
   grid-template-columns: repeat(11, 1fr);
-  gap: 6px;
+  gap: 3px;
 }
 
 .abracaBoardCell {
   aspect-ratio: 1 / 1;
-  border-radius: 10px;
+  border-radius: 6px;
   display: grid;
   place-items: center;
   overflow: hidden;
@@ -1175,7 +1208,7 @@ select {
 
 .abracaBoardCell.label b {
   position: absolute;
-  font-size: 24px;
+  font-size: 18px;
   color: #fff7d1;
   text-shadow: 0 2px 6px #000;
 }
@@ -1202,9 +1235,9 @@ select {
 }
 
 .abracaMiniStone {
-  width: 44px;
-  height: 44px;
-  border-radius: 8px;
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
   overflow: hidden;
   border: 1px solid #5b432e;
   background: #1c140f;
@@ -1249,9 +1282,11 @@ select {
 
 .abracaSideBar {
   display: grid;
-  gap: 12px;
+  gap: 7px;
   position: sticky;
-  top: 12px;
+  top: 8px;
+  max-height: calc(100vh - 110px);
+  overflow: hidden;
 }
 
 .abracaResultCard,
@@ -1260,9 +1295,9 @@ select {
 .abracaSpellPanel,
 .abracaRoundSummary {
   border: 1px solid #6d5438;
-  border-radius: 18px;
+  border-radius: 8px;
   background: #241a13;
-  padding: 14px;
+  padding: 8px;
 }
 
 .abracaResultCard {
@@ -1285,15 +1320,15 @@ select {
   border-radius: 999px;
   background: #ffd37a;
   color: #211407;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 900;
 }
 
 .abracaResultCard p {
-  margin: 8px 0 0;
-  font-size: 17px;
+  margin: 6px 0 0;
+  font-size: 13px;
   font-weight: 900;
-  line-height: 1.45;
+  line-height: 1.25;
   color: #fff4ca;
 }
 
@@ -1302,17 +1337,19 @@ select {
 .abracaSpellPanel h3,
 .abracaRoundSummary h3 {
   margin-top: 0;
+  margin-bottom: 6px;
   color: #ffd37a;
+  font-size: 14px;
 }
 
 .abracaPlayerMini {
   display: grid;
-  gap: 8px;
-  padding: 10px;
-  border-radius: 14px;
+  gap: 5px;
+  padding: 6px;
+  border-radius: 8px;
   background: #302319;
   border: 1px solid #4f3927;
-  margin-top: 10px;
+  margin-top: 6px;
 }
 
 .abracaPlayerMini.current {
@@ -1326,9 +1363,10 @@ select {
 
 .abracaPlayerMiniHead {
   display: flex;
-  gap: 8px;
+  gap: 6px;
   align-items: center;
   flex-wrap: wrap;
+  font-size: 12px;
 }
 
 .abracaPlayerMiniHead em {
@@ -1338,8 +1376,8 @@ select {
 }
 
 .abracaColorDot {
-  width: 15px;
-  height: 15px;
+  width: 12px;
+  height: 12px;
   border-radius: 50%;
   border: 1px solid #fff8;
   flex: 0 0 auto;
@@ -1347,12 +1385,12 @@ select {
 
 .abracaHpRow {
   display: flex;
-  gap: 5px;
+  gap: 3px;
 }
 
 .hpToken {
-  width: 17px;
-  height: 17px;
+  width: 11px;
+  height: 11px;
   border-radius: 50%;
   background: #3a2a1d;
   border: 1px solid #6d5438;
@@ -1366,7 +1404,7 @@ select {
 .abracaMiniHand {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 3px;
 }
 
 .abracaMiniSecret {
@@ -1384,10 +1422,10 @@ select {
 
 .abracaTurnNotice {
   display: grid;
-  gap: 4px;
-  margin-bottom: 10px;
-  padding: 10px;
-  border-radius: 12px;
+  gap: 2px;
+  margin-bottom: 6px;
+  padding: 7px;
+  border-radius: 8px;
   background: #302319;
 }
 
@@ -1397,24 +1435,32 @@ select {
 
 .abracaTurnNotice span {
   color: #c9bca8;
-  font-size: 13px;
+  font-size: 12px;
 }
 
 .abracaSpellButtons {
   display: grid;
-  gap: 8px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 5px;
 }
 
 .abracaSpellButtons button {
   text-align: left;
   display: grid;
-  gap: 4px;
-  padding: 10px;
-  border-radius: 12px;
+  gap: 2px;
+  padding: 7px;
+  border-radius: 8px;
+  min-height: 64px;
+}
+
+.abracaSpellButtons button b {
+  font-size: 12px;
+  line-height: 1.15;
 }
 
 .abracaSpellButtons button small {
-  line-height: 1.35;
+  font-size: 10px;
+  line-height: 1.2;
 }
 
 .abracaSpellButtons button:disabled {
@@ -1425,7 +1471,7 @@ select {
 
 .abracaPassButton {
   width: 100%;
-  margin-top: 10px;
+  margin-top: 6px;
   background: #22c55e;
 }
 
@@ -1458,7 +1504,7 @@ select {
 .abracaLogList {
   display: grid;
   gap: 8px;
-  max-height: 300px;
+  max-height: 180px;
   overflow-y: auto;
 }
 
@@ -1477,7 +1523,69 @@ select {
 
   .abracaSideBar {
     position: static;
+    max-height: none;
+    overflow: visible;
   }
+}
+
+.abracaWinOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: #0009;
+}
+
+.abracaWinModal {
+  width: min(420px, 100%);
+  border: 1px solid #ffd37a;
+  border-radius: 8px;
+  background: #241a13;
+  color: #fff4ca;
+  padding: 18px;
+  box-shadow: 0 24px 80px #000c;
+}
+
+.abracaWinModal > span {
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: #ffd37a;
+  color: #211407;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.abracaWinModal h2 {
+  margin: 10px 0 14px;
+  color: #ffd37a;
+}
+
+.abracaRankList {
+  display: grid;
+  gap: 8px;
+}
+
+.abracaRankList p {
+  margin: 0;
+  display: grid;
+  grid-template-columns: 52px 1fr auto;
+  gap: 8px;
+  align-items: center;
+  padding: 9px 10px;
+  border-radius: 8px;
+  background: #302319;
+}
+
+.abracaRankList b {
+  color: #ffd37a;
+}
+
+.abracaRankList em {
+  font-style: normal;
+  color: #d8c7ad;
 }
 
 @media (max-width: 760px) {
