@@ -101,6 +101,71 @@ const stoneImages: Record<SpellNumber, string> = {
 
 const BACK_IMAGE = "/stones/back.png";
 
+const diceSpellSet = new Set<SpellNumber>([1, 3]);
+const spellDieMaxValue = 3;
+
+function isDiceSpell(spell: SpellNumber | undefined): spell is SpellNumber {
+  return spell === 1 || spell === 3;
+}
+
+function getResultSpell(result: LastResult | null) {
+  if (!result) return null;
+  if (isDiceSpell(result.spell)) return result.spell;
+  if (result.message.includes("1번") && result.message.includes("주사위")) {
+    return 1;
+  }
+  if (result.message.includes("3번") && result.message.includes("주사위")) {
+    return 3;
+  }
+
+  return null;
+}
+
+function getDiceValue(result: LastResult | null) {
+  if (!result || getResultSpell(result) === null) return null;
+
+  const match = result.message.match(/주사위\s*(\d+)/);
+  const value = Number(match?.[1]);
+
+  return value >= 1 && value <= spellDieMaxValue ? value : null;
+}
+
+function CssDie({
+  value,
+  rolling,
+}: {
+  value: number | null;
+  rolling: boolean;
+}) {
+  const safeValue = rolling ? null : (value ?? spellDieMaxValue);
+  const activeDots: Record<number, number[]> = {
+    1: [4],
+    2: [0, 8],
+    3: [0, 4, 8],
+  };
+  const rollingDots = [0, 4, 8];
+
+  return (
+    <div
+      className={`abracaDice ${rolling ? "rolling" : ""}`}
+      aria-label={rolling ? "주사위 굴리는 중" : `주사위 ${safeValue}`}
+    >
+      {Array.from({ length: 9 }).map((_, index) => (
+        <span
+          key={index}
+          className={
+            (safeValue === null
+              ? rollingDots.includes(index)
+              : activeDots[safeValue]?.includes(index))
+              ? "on"
+              : ""
+          }
+        />
+      ))}
+    </div>
+  );
+}
+
 function StoneCard({
   stone,
   small = false,
@@ -232,6 +297,8 @@ function AbracaBoard({
 function AbracaWhatGame() {
   const socketRef = useRef<ReturnType<typeof io> | null>(null);
   const didRejoinRef = useRef(false);
+  const lastDiceResultKeyRef = useRef("");
+  const previousTurnPlayerIdRef = useRef<string | null>(null);
 
   const [nickname, setNickname] = useState("");
   const [roomCodeInput, setRoomCodeInput] = useState("");
@@ -241,6 +308,17 @@ function AbracaWhatGame() {
   const [room, setRoom] = useState<RoomState | null>(null);
   const [error, setError] = useState("");
   const [showLogs, setShowLogs] = useState(false);
+  const [diceRoll, setDiceRoll] = useState<{
+    spell: SpellNumber | null;
+    value: number | null;
+    rolling: boolean;
+    resultKey: string;
+  }>({
+    spell: null,
+    value: null,
+    rolling: false,
+    resultKey: "",
+  });
 
   const me = useMemo(
     () => room?.players.find((p) => p.id === playerId) ?? null,
@@ -279,6 +357,64 @@ function AbracaWhatGame() {
     room.status === "playing" &&
     room.currentTurnPlayerId === playerId &&
     !me?.eliminated;
+
+  useEffect(() => {
+    const result = room?.lastResult ?? null;
+    const resultSpell = getResultSpell(result);
+    const value = getDiceValue(result);
+
+    if (!result) return;
+
+    if (value === null || resultSpell === null) {
+      setDiceRoll({
+        spell: null,
+        value: null,
+        rolling: false,
+        resultKey: "",
+      });
+      return;
+    }
+
+    const resultKey = `${result.playerId ?? ""}-${resultSpell}-${result.message}`;
+    if (lastDiceResultKeyRef.current === resultKey) return;
+    lastDiceResultKeyRef.current = resultKey;
+
+    setDiceRoll({
+      spell: resultSpell,
+      value: null,
+      rolling: true,
+      resultKey,
+    });
+
+    const timer = window.setTimeout(() => {
+      setDiceRoll((current) =>
+        current.resultKey === resultKey
+          ? { ...current, value, rolling: false }
+          : current,
+      );
+    }, 900);
+
+    return () => window.clearTimeout(timer);
+  }, [room?.lastResult]);
+
+  useEffect(() => {
+    const currentTurnPlayerId = room?.currentTurnPlayerId ?? null;
+    const previousTurnPlayerId = previousTurnPlayerIdRef.current;
+
+    previousTurnPlayerIdRef.current = currentTurnPlayerId;
+
+    if (
+      previousTurnPlayerId !== null &&
+      previousTurnPlayerId !== currentTurnPlayerId
+    ) {
+      setDiceRoll({
+        spell: null,
+        value: null,
+        rolling: false,
+        resultKey: "",
+      });
+    }
+  }, [room?.currentTurnPlayerId]);
 
   useEffect(() => {
     const socket = io(SERVER_URL, { autoConnect: true });
@@ -394,6 +530,15 @@ function AbracaWhatGame() {
   }
 
   function castSpell(spell: SpellNumber) {
+    if (diceSpellSet.has(spell)) {
+      setDiceRoll({
+        spell,
+        value: null,
+        rolling: true,
+        resultKey: `pending-${Date.now()}`,
+      });
+    }
+
     socketRef.current?.emit("abraca:spell:cast", { spell });
   }
 
@@ -586,6 +731,16 @@ function AbracaWhatGame() {
             }`}
           >
             <span>최근 주문 결과</span>
+            {diceRoll.spell && (
+              <div className="abracaResultDice">
+                <CssDie value={diceRoll.value} rolling={diceRoll.rolling} />
+                <strong>
+                  {diceRoll.rolling
+                    ? "주사위 굴리는 중..."
+                    : `주사위 결과 ${diceRoll.value}`}
+                </strong>
+              </div>
+            )}
             <p>{room.lastResult?.message || "아직 주문 결과가 없습니다."}</p>
           </section>
 
@@ -671,18 +826,33 @@ function AbracaWhatGame() {
               </div>
 
               <div className="abracaSpellButtons">
-                {([1, 2, 3, 4, 5, 6, 7, 8] as SpellNumber[]).map((spell) => (
-                  <button
-                    key={spell}
-                    disabled={!canCast(spell)}
-                    onClick={() => castSpell(spell)}
-                  >
-                    <b>
-                      {spell}. {spellNames[spell]}
-                    </b>
-                    <small>{spellDescriptions[spell]}</small>
-                  </button>
-                ))}
+                {([1, 2, 3, 4, 5, 6, 7, 8] as SpellNumber[]).map((spell) => {
+                  const isDice = diceSpellSet.has(spell);
+                  const isRolling = diceRoll.rolling && diceRoll.spell === spell;
+                  const diceValue = diceRoll.spell === spell ? diceRoll.value : null;
+
+                  return (
+                    <button
+                      key={spell}
+                      className={isDice ? "diceSpell" : ""}
+                      disabled={!canCast(spell) || isRolling}
+                      onClick={() => castSpell(spell)}
+                    >
+                      <b>
+                        {spell}. {spellNames[spell]}
+                      </b>
+                      {isDice && (
+                        <span className="abracaDiceAction">
+                          <CssDie value={diceValue} rolling={isRolling} />
+                          <em>
+                            {isRolling ? "굴리는 중..." : "주사위 굴리기"}
+                          </em>
+                        </span>
+                      )}
+                      <small>{spellDescriptions[spell]}</small>
+                    </button>
+                  );
+                })}
               </div>
 
               {isMyTurn && room.turnSuccessCount > 0 && (
