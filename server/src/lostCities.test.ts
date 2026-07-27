@@ -15,6 +15,7 @@ import { lostCitiesTestApi, registerLostCities } from "./lostCities.js";
 type RoomResponse = {
   roomCode: string;
   playerId: string;
+  resumeToken: string;
   roomState: LostCitiesRoomState;
 };
 
@@ -140,6 +141,7 @@ async function seedTurnRoom(options: {
     players: [
       {
         id: "player-a",
+        resumeToken: "resume-token-a",
         socketId: current.id!,
         nickname: "A",
         isHost: true,
@@ -149,6 +151,7 @@ async function seedTurnRoom(options: {
       },
       {
         id: "player-b",
+        resumeToken: "resume-token-b",
         socketId: opponent.id!,
         nickname: "B",
         isHost: false,
@@ -193,6 +196,11 @@ test("host creates a room and second player joins by code", async () => {
   );
 
   assert.match(created.roomCode, /^[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{6}$/);
+  assert.match(created.resumeToken, /^[0-9a-f]{64}$/);
+  assert.match(joined.resumeToken, /^[0-9a-f]{64}$/);
+  assert.notEqual(created.resumeToken, joined.resumeToken);
+  assert.equal(JSON.stringify(created.roomState).includes(created.resumeToken), false);
+  assert.equal(JSON.stringify(joined.roomState).includes(joined.resumeToken), false);
   assert.equal(created.roomState.players[0].nickname, "A");
   assert.equal(joined.roomState.players.length, 2);
 });
@@ -609,7 +617,11 @@ test("rejoin replaces the socket and returns the saved private hand", async () =
   const state = await emitAndWait<LostCitiesRoomState>(
     replacement,
     "lost-cities:room:rejoin",
-    { roomCode: "turn01", playerId: "player-a" },
+    {
+      roomCode: "turn01",
+      playerId: "player-a",
+      resumeToken: "resume-token-a",
+    },
     "lost-cities:room:state",
   );
 
@@ -623,6 +635,61 @@ test("rejoin replaces the socket and returns the saved private hand", async () =
     lostCitiesTestApi.getRoom("TURN01")?.players[0].socketId,
     replacement.id,
   );
+});
+
+test("a player credential cannot impersonate the opponent on rejoin", async () => {
+  const { opponent } = await seedTurnRoom();
+  const attacker = await connectClient();
+  const opponentSocketId = opponent.id;
+  const before = structuredClone(lostCitiesTestApi.getRoom("TURN01"));
+
+  const response = await emitAndWait<{ message: string }>(
+    attacker,
+    "lost-cities:room:rejoin",
+    {
+      roomCode: "TURN01",
+      playerId: "player-b",
+      resumeToken: "resume-token-a",
+    },
+    "lost-cities:error",
+  );
+
+  assert.ok(response.message);
+  assert.equal(
+    lostCitiesTestApi.getRoom("TURN01")?.players[1].socketId,
+    opponentSocketId,
+  );
+  assert.deepEqual(lostCitiesTestApi.getRoom("TURN01"), before);
+});
+
+test("an invalid credential cannot claim a disconnected player", async () => {
+  const { current, opponent } = await seedTurnRoom();
+  const disconnectedState = waitFor<LostCitiesRoomState>(
+    opponent,
+    "lost-cities:room:state",
+    (state) =>
+      state.players.some(
+        (player) => player.id === "player-a" && !player.connected,
+      ),
+  );
+  current.disconnect();
+  await disconnectedState;
+  const attacker = await connectClient();
+  const before = structuredClone(lostCitiesTestApi.getRoom("TURN01"));
+
+  const response = await emitAndWait<{ message: string }>(
+    attacker,
+    "lost-cities:room:rejoin",
+    {
+      roomCode: "TURN01",
+      playerId: "player-a",
+      resumeToken: "invalid-token",
+    },
+    "lost-cities:error",
+  );
+
+  assert.ok(response.message);
+  assert.deepEqual(lostCitiesTestApi.getRoom("TURN01"), before);
 });
 
 test("explicit leave abandons an active game and informs the remaining player", async () => {

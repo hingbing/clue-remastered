@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { Server, Socket } from "socket.io";
 import {
   LOST_CITIES_COLORS,
@@ -16,6 +17,7 @@ import {
 
 type LostCitiesPlayer = {
   id: string;
+  resumeToken: string;
   socketId: string | null;
   nickname: string;
   isHost: boolean;
@@ -64,6 +66,10 @@ function makeId(): string {
   return `lost_cities_player_${Math.random().toString(36).slice(2, 10)}_${Date.now().toString(36)}`;
 }
 
+function makeResumeToken(): string {
+  return randomBytes(32).toString("hex");
+}
+
 function makeRoomCode(): string {
   let roomCode = "";
   for (let index = 0; index < 6; index += 1) {
@@ -92,6 +98,7 @@ function createPlayer(
 ): LostCitiesPlayer {
   return {
     id: makeId(),
+    resumeToken: makeResumeToken(),
     socketId: socket.id,
     nickname,
     isHost,
@@ -320,6 +327,7 @@ export function registerLostCities(io: Server): void {
         socket.emit("lost-cities:room:created", {
           roomCode,
           playerId: player.id,
+          resumeToken: player.resumeToken,
           roomState: publicRoom(room, player.id),
         });
         emitRoom(io, room);
@@ -351,6 +359,7 @@ export function registerLostCities(io: Server): void {
         socket.emit("lost-cities:room:joined", {
           roomCode: room.roomCode,
           playerId: player.id,
+          resumeToken: player.resumeToken,
           roomState: publicRoom(room, player.id),
         });
         emitRoom(io, room);
@@ -364,14 +373,20 @@ export function registerLostCities(io: Server): void {
           return error(socket, "이미 다른 방에 입장했습니다.");
         }
 
-        const { roomCode, playerId } = payloadRecord(payload);
+        const { roomCode, playerId, resumeToken } = payloadRecord(payload);
         const code = String(roomCode ?? "").trim().toUpperCase();
         const savedPlayerId = String(playerId ?? "");
+        const savedResumeToken = String(resumeToken ?? "");
         const room = rooms.get(code);
         const player = room?.players.find(
           (candidate) => candidate.id === savedPlayerId,
         );
-        if (!room || !player) {
+        if (
+          !room ||
+          !player ||
+          !savedResumeToken ||
+          player.resumeToken !== savedResumeToken
+        ) {
           return error(socket, "이전 로스트 시티 방으로 재접속하지 못했습니다.");
         }
 
@@ -387,6 +402,7 @@ export function registerLostCities(io: Server): void {
         socket.emit("lost-cities:room:joined", {
           roomCode: room.roomCode,
           playerId: player.id,
+          resumeToken: player.resumeToken,
           roomState: publicRoom(room, player.id),
         });
         emitRoom(io, room);
