@@ -108,6 +108,65 @@ test("nicknames are trimmed and limited to twenty characters", async () => {
   assert.equal(created.roomState.players[0].nickname, "12345678901234567890");
 });
 
+test("a socket already in a room cannot create another room", async () => {
+  const host = await connectClient();
+  await emitAndWait<RoomResponse>(
+    host,
+    "lost-cities:room:create",
+    { nickname: "A" },
+    "lost-cities:room:created",
+  );
+
+  const error = await emitAndWait<{ message: string }>(
+    host,
+    "lost-cities:room:create",
+    { nickname: "A2" },
+    "lost-cities:error",
+  );
+
+  assert.ok(error.message);
+});
+
+test("a socket already in a room cannot join a room again", async () => {
+  const host = await connectClient();
+  const created = await emitAndWait<RoomResponse>(
+    host,
+    "lost-cities:room:create",
+    { nickname: "A" },
+    "lost-cities:room:created",
+  );
+
+  const error = await emitAndWait<{ message: string }>(
+    host,
+    "lost-cities:room:join",
+    { nickname: "A2", roomCode: created.roomCode },
+    "lost-cities:error",
+  );
+
+  assert.ok(error.message);
+});
+
+test("null create and join payloads return protocol errors", async () => {
+  const createClientSocket = await connectClient();
+  const joinClientSocket = await connectClient();
+
+  const createError = await emitAndWait<{ message: string }>(
+    createClientSocket,
+    "lost-cities:room:create",
+    null,
+    "lost-cities:error",
+  );
+  const joinError = await emitAndWait<{ message: string }>(
+    joinClientSocket,
+    "lost-cities:room:join",
+    null,
+    "lost-cities:error",
+  );
+
+  assert.ok(createError.message);
+  assert.ok(joinError.message);
+});
+
 test("a third player cannot join a two-player room", async () => {
   const host = await connectClient();
   const guest = await connectClient();

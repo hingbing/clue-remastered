@@ -67,6 +67,12 @@ function cleanNickname(nickname: unknown): string {
   return String(nickname ?? "").trim().slice(0, 20);
 }
 
+function payloadRecord(payload: unknown): Record<string, unknown> {
+  return typeof payload === "object" && payload !== null
+    ? (payload as Record<string, unknown>)
+    : {};
+}
+
 function createPlayer(
   socket: Socket,
   nickname: string,
@@ -163,7 +169,11 @@ export function registerLostCities(io: Server): void {
   io.on("connection", (socket) => {
     socket.on(
       "lost-cities:room:create",
-      ({ nickname }: { nickname?: unknown } = {}) => {
+      (payload: unknown) => {
+        if (roomCodeBySocket.has(socket.id))
+          return error(socket, "이미 다른 방에 입장했습니다.");
+
+        const { nickname } = payloadRecord(payload);
         const clean = cleanNickname(nickname);
         if (!clean) return error(socket, "닉네임을 입력해주세요.");
 
@@ -195,12 +205,11 @@ export function registerLostCities(io: Server): void {
 
     socket.on(
       "lost-cities:room:join",
-      (
-        {
-          roomCode,
-          nickname,
-        }: { roomCode?: unknown; nickname?: unknown } = {},
-      ) => {
+      (payload: unknown) => {
+        if (roomCodeBySocket.has(socket.id))
+          return error(socket, "이미 다른 방에 입장했습니다.");
+
+        const { roomCode, nickname } = payloadRecord(payload);
         const code = String(roomCode ?? "").trim().toUpperCase();
         const clean = cleanNickname(nickname);
         const room = rooms.get(code);
