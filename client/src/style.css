@@ -597,6 +597,10 @@ select {
   width: 100%;
 }
 
+.lostCitiesLobby button {
+  min-height: 44px;
+}
+
 .lostCitiesActions,
 .lostCitiesJoin {
   display: flex;
