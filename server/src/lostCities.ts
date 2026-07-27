@@ -154,6 +154,7 @@ function publicRoom(
     viewerHand: viewer?.hand ?? [],
     currentTurnPlayerId: room.currentTurnPlayerId,
     turnPhase: room.turnPhase,
+    discardedCardIdThisTurn: room.discardedCardIdThisTurn,
     drawPileCount: room.drawPile.length,
     discardTops: Object.fromEntries(
       LOST_CITIES_COLORS.map((color) => [

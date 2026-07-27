@@ -40,6 +40,7 @@ export interface LostCitiesRoomState {
   viewerHand: LostCitiesCard[];
   currentTurnPlayerId: string | null;
   turnPhase: LostCitiesTurnPhase;
+  discardedCardIdThisTurn: string | null;
   drawPileCount: number;
   discardTops: Record<LostCitiesColor, LostCitiesCard | null>;
   discardCounts: Record<LostCitiesColor, number>;

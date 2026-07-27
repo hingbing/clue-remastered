@@ -1376,7 +1376,9 @@ select {
 
 .lostCitiesGameShell {
   min-height: 100dvh;
+  width: 100%;
   box-sizing: border-box;
+  overflow: hidden;
   padding: 6px;
   display: grid;
   grid-template-rows: auto auto minmax(0, 1fr) auto auto;
@@ -1424,6 +1426,7 @@ select {
 
 .lostCitiesBoard {
   min-height: 0;
+  min-width: 0;
   display: grid;
   grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: clamp(3px, 0.7vw, 9px);
@@ -1432,8 +1435,9 @@ select {
 
 .lostCitiesColumn {
   min-width: 0;
+  min-height: 0;
   display: grid;
-  grid-template-rows: auto minmax(26px, 1fr) minmax(52px, 1.15fr) minmax(26px, 1fr) auto;
+  grid-template-rows: auto minmax(0, 1fr) minmax(44px, 1.15fr) minmax(0, 1fr) auto;
   gap: 3px;
   padding: 3px;
   border: 1px solid #6a4d2e;
@@ -1456,7 +1460,7 @@ select {
 
 .lostCitiesExpedition {
   min-width: 0;
-  min-height: 26px;
+  min-height: 0;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1478,7 +1482,9 @@ select {
 .lostCitiesDiscard {
   position: relative;
   min-width: 0;
-  min-height: 52px;
+  min-height: 44px;
+  display: grid;
+  place-items: center;
   padding: 0;
   overflow: hidden;
   border: 1px solid #9b7544;
@@ -1489,7 +1495,8 @@ select {
 
 .lostCitiesDiscard:not(:disabled) { cursor: pointer; box-shadow: 0 0 0 2px #ffd37a88; }
 .lostCitiesDiscard:disabled { opacity: 1; cursor: default; transform: none; }
-.lostCitiesDiscard img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.lostCitiesDiscardField { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
+.lostCitiesDiscardCard { position: relative; z-index: 1; width: auto; height: min(82%, 86px); max-width: 88%; aspect-ratio: 2 / 3; object-fit: cover; display: block; }
 
 .lostCitiesDiscardCount {
   position: absolute;
@@ -1540,7 +1547,8 @@ select {
 .lostCitiesDeck img { width: 27px; height: 38px; object-fit: cover; border-radius: 3px; }
 
 .lostCitiesHand {
-  min-height: 0;
+  height: clamp(44px, 19dvh, 88px);
+  min-height: 44px;
   display: grid;
   grid-template-columns: repeat(8, minmax(0, 1fr));
   gap: clamp(2px, 0.5vw, 7px);
@@ -1554,7 +1562,9 @@ select {
 .lostCitiesHandCard {
   min-width: 0;
   min-height: 44px;
-  aspect-ratio: 2 / 3;
+  height: 100%;
+  display: grid;
+  place-items: center;
   padding: 0;
   overflow: hidden;
   border: 2px solid transparent;
@@ -1565,7 +1575,7 @@ select {
 
 .lostCitiesHandCard:not(:disabled) { cursor: pointer; }
 .lostCitiesHandCard:disabled { opacity: 0.82; cursor: default; transform: none; }
-.lostCitiesHandCard img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.lostCitiesHandCard img { width: auto; height: 100%; max-width: 100%; aspect-ratio: 2 / 3; object-fit: cover; display: block; }
 .lostCitiesHandCard.lostCitiesSelected { border-color: #ffd37a; transform: translateY(-5px); box-shadow: 0 0 0 2px #ffd37a66; }
 
 .lostCitiesResultPanel {
@@ -1595,7 +1605,11 @@ select {
 .lostCitiesScoreCard.lostCitiesWinner { border-color: #ffd37a; }
 .lostCitiesScoreCard h3 { margin: 0 0 5px; color: #fff3d7; font-size: 15px; }
 .lostCitiesScoreCard h3 b { color: #ffd37a; }
-.lostCitiesScoreCard div { display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px; font-size: 12px; color: #d7c4a7; }
+.lostCitiesScoreCard div { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; font-size: 12px; color: #d7c4a7; }
+.lostCitiesScoreCard div > span { display: grid; gap: 2px; padding: 4px; border-radius: 4px; background: #1b130e; }
+.lostCitiesScoreCard div b { color: #ffd37a; }
+.lostCitiesScoreCard div small { font-size: 11px; }
+.lostCitiesScoreCard div strong { color: #fff3d7; }
 
 .lostCitiesRotateNotice { display: none; }
 
@@ -1622,10 +1636,10 @@ select {
   .lostCitiesBoardHeader { min-height: 44px; padding: 3px 6px; }
   .lostCitiesBoardHeader button { min-height: 44px; padding: 5px 9px; }
   .lostCitiesColumn { gap: 2px; padding: 2px; }
-  .lostCitiesDiscard { min-height: 45px; }
+  .lostCitiesDiscard { min-height: 44px; }
   .lostCitiesControlRow { min-height: 44px; }
   .lostCitiesControlRow button { min-height: 44px; padding: 5px 12px; }
-  .lostCitiesHand { max-height: 100px; }
+  .lostCitiesHand { height: clamp(44px, 19dvh, 80px); }
 }
 
 .emptySlot {

@@ -74,7 +74,6 @@ function LostCitiesGame() {
   const [room, setRoom] = useState<LostCitiesRoomState | null>(null);
   const [error, setError] = useState("");
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
-  const [discardedCardIdThisTurn, setDiscardedCardIdThisTurn] = useState<string | null>(null);
 
   function clearSession() {
     sessionStorage.removeItem(ROOM_KEY);
@@ -106,7 +105,6 @@ function LostCitiesGame() {
       setRoom(null);
       setError("");
       setSelectedCardId(null);
-      setDiscardedCardIdThisTurn(null);
     }
 
     function handleError({ message }: { message: string }) {
@@ -156,7 +154,6 @@ function LostCitiesGame() {
     if (!room) return;
     const stillInHand = room.viewerHand.some((card) => card.id === selectedCardId);
     if (room.turnPhase !== "play" || !stillInHand) setSelectedCardId(null);
-    if (room.turnPhase === "play") setDiscardedCardIdThisTurn(null);
   }, [room, selectedCardId]);
 
   function createRoom() {
@@ -180,7 +177,6 @@ function LostCitiesGame() {
 
   function play(card: LostCitiesCard, destination: "expedition" | "discard") {
     if (!room || room.turnPhase !== "play") return;
-    if (destination === "discard") setDiscardedCardIdThisTurn(card.id);
     socketRef.current?.emit("lost-cities:card:play", { cardId: card.id, destination });
   }
 
@@ -265,7 +261,7 @@ function LostCitiesGame() {
         <section className="lostCitiesBoard" aria-label="로스트 시티 게임 보드">
           {LOST_CITIES_COLORS.map((color) => {
             const discard = room.discardTops[color];
-            const discardAvailable = isViewerTurn && room.turnPhase === "draw" && discard && discard.id !== discardedCardIdThisTurn;
+            const discardAvailable = isViewerTurn && room.turnPhase === "draw" && discard && discard.id !== room.discardedCardIdThisTurn;
             return (
               <article className={`lostCitiesColumn lostCities${color[0].toUpperCase()}${color.slice(1)}`} key={color}>
                 <div className="lostCitiesColumnTitle"><span>{opponent?.nickname ?? "상대"}</span><b>{opponentLines.find((line) => line.color === color)?.total ?? 0}</b></div>
@@ -276,7 +272,8 @@ function LostCitiesGame() {
                   aria-label={discard ? `${color} 버린 카드 ${room.discardCounts[color]}장` : `${color} 빈 버림 더미`}
                   onClick={() => drawDiscard(color)}
                 >
-                  <img src={discard ? cardImage(discard) : fieldImage(color)} alt="" />
+                  <img className="lostCitiesDiscardField" src={fieldImage(color)} alt="" />
+                  {discard && <img className="lostCitiesDiscardCard" src={cardImage(discard)} alt="" />}
                   {discard && <span className="lostCitiesDiscardCount">{room.discardCounts[color]}</span>}
                 </button>
                 <Expedition cards={me?.expeditions[color] ?? []} label={`${color} 내 탐험`} />
@@ -345,7 +342,7 @@ function Expedition({ cards, label }: { cards: LostCitiesCard[]; label: string }
 }
 
 function ScoreCard({ name, lines, winner }: { name: string; lines: LostCitiesScoreLine[]; winner: boolean }) {
-  return <div className={`lostCitiesScoreCard ${winner ? "lostCitiesWinner" : ""}`}><h3>{winner ? "승자 · " : ""}{name} <b>{scoreTotal(lines)}점</b></h3><div>{lines.map((line) => <span key={line.color}>{line.color} {line.total > 0 ? "+" : ""}{line.total}</span>)}</div></div>;
+  return <div className={`lostCitiesScoreCard ${winner ? "lostCitiesWinner" : ""}`}><h3>{winner ? "승자 · " : ""}{name} <b>{scoreTotal(lines)}점</b></h3><div>{lines.map((line) => <span key={line.color}><b>{line.color}</b><small>숫자 합 {line.numberTotal} − 기본 비용 20</small><small>× {line.multiplier} (투자 {line.investmentCount}) + 장거리 {line.longExpeditionBonus}</small><strong>= {line.total}점{line.total === 0 && line.numberTotal === 0 && line.investmentCount === 0 ? " (미개척)" : ""}</strong></span>)}</div></div>;
 }
 
 export default LostCitiesGame;

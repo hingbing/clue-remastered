@@ -637,6 +637,42 @@ test("rejoin replaces the socket and returns the saved private hand", async () =
   );
 });
 
+test("rejoining during draw exposes the card discarded this turn", async () => {
+  const discarded = numberCard("yellow", 2);
+  const discards = Object.fromEntries(
+    LOST_CITIES_COLORS.map((color) => [
+      color,
+      color === "yellow" ? [discarded] : [],
+    ]),
+  ) as Record<LostCitiesColor, LostCitiesCard[]>;
+  const { current, opponent } = await seedTurnRoom({
+    turnPhase: "draw",
+    discards,
+    discardedCardIdThisTurn: discarded.id,
+  });
+  const disconnectedState = waitFor<LostCitiesRoomState>(
+    opponent,
+    "lost-cities:room:state",
+    (state) => state.players.some((player) => player.id === "player-a" && !player.connected),
+  );
+  current.disconnect();
+  await disconnectedState;
+  const replacement = await connectClient();
+
+  const state = await emitAndWait<LostCitiesRoomState>(
+    replacement,
+    "lost-cities:room:rejoin",
+    {
+      roomCode: "TURN01",
+      playerId: "player-a",
+      resumeToken: "resume-token-a",
+    },
+    "lost-cities:room:state",
+  );
+
+  assert.equal(state.discardedCardIdThisTurn, discarded.id);
+});
+
 test("a player credential cannot impersonate the opponent on rejoin", async () => {
   const { opponent } = await seedTurnRoom();
   const attacker = await connectClient();
