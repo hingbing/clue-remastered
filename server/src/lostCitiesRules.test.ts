@@ -93,5 +93,14 @@ test("player scoring returns one line per color and sums their totals", () => {
 });
 
 test("equal player totals remain tied", () => {
-  assert.equal(scorePlayer(emptyExpeditions()).total, scorePlayer(emptyExpeditions()).total);
+  const firstPlayerExpeditions = emptyExpeditions();
+  firstPlayerExpeditions.yellow = [number(2)];
+  const secondPlayerExpeditions = emptyExpeditions();
+  secondPlayerExpeditions.red = [card("red", "number", 2)];
+
+  assert.notEqual(firstPlayerExpeditions, secondPlayerExpeditions);
+  assert.equal(
+    scorePlayer(firstPlayerExpeditions).total,
+    scorePlayer(secondPlayerExpeditions).total,
+  );
 });
