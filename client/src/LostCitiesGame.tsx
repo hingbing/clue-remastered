@@ -16,7 +16,6 @@ type RoomResponse = {
 
 function LostCitiesGame() {
   const socketRef = useRef<ReturnType<typeof io> | null>(null);
-  const didRejoinRef = useRef(false);
   const isRejoiningRef = useRef(false);
   const [nickname, setNickname] = useState("");
   const [roomCodeInput, setRoomCodeInput] = useState("");
@@ -65,28 +64,29 @@ function LostCitiesGame() {
       setError(message);
     }
 
+    function rejoinStoredRoom() {
+      const roomCode = sessionStorage.getItem(ROOM_KEY);
+      const savedPlayerId = sessionStorage.getItem(PLAYER_KEY);
+      const resumeToken = sessionStorage.getItem(RESUME_TOKEN_KEY);
+      if (!roomCode || !savedPlayerId || !resumeToken) return;
+
+      isRejoiningRef.current = true;
+      socket.emit("lost-cities:room:rejoin", {
+        roomCode,
+        playerId: savedPlayerId,
+        resumeToken,
+      });
+    }
+
+    socket.on("connect", rejoinStoredRoom);
     socket.on("lost-cities:room:created", handleRoom);
     socket.on("lost-cities:room:joined", handleRoom);
     socket.on("lost-cities:room:state", handleState);
     socket.on("lost-cities:room:left", handleLeft);
     socket.on("lost-cities:error", handleError);
 
-    if (!didRejoinRef.current) {
-      didRejoinRef.current = true;
-      const roomCode = sessionStorage.getItem(ROOM_KEY);
-      const savedPlayerId = sessionStorage.getItem(PLAYER_KEY);
-      const resumeToken = sessionStorage.getItem(RESUME_TOKEN_KEY);
-      if (roomCode && savedPlayerId && resumeToken) {
-        isRejoiningRef.current = true;
-        socket.emit("lost-cities:room:rejoin", {
-          roomCode,
-          playerId: savedPlayerId,
-          resumeToken,
-        });
-      }
-    }
-
     return () => {
+      socket.off("connect", rejoinStoredRoom);
       socket.off("lost-cities:room:created", handleRoom);
       socket.off("lost-cities:room:joined", handleRoom);
       socket.off("lost-cities:room:state", handleState);
