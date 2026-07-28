@@ -3,6 +3,7 @@ import cors from "cors";
 import http from "http";
 import { Server, Socket } from "socket.io";
 import { registerAbraca } from "./abraca.js";
+import { registerLostCities } from "./lostCities.js";
 import {
   allCards,
   characters,
@@ -93,6 +94,7 @@ const io = new Server(httpServer, {
 });
 
 registerAbraca(io);
+registerLostCities(io);
 const registerLegacyAbracaHandlers =
   process.env.LEGACY_ABRACA_HANDLERS === "true";
 

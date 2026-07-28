@@ -571,6 +571,144 @@ select {
   padding: 16px;
 }
 
+.lostCitiesPage {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: radial-gradient(circle at center, #4a3320, #14100d);
+}
+
+.lostCitiesLobby {
+  width: min(560px, 92vw);
+  padding: 34px;
+  border: 1px solid #6d5438;
+  border-radius: 24px;
+  background: rgba(30, 22, 16, 0.92);
+  box-shadow: 0 30px 80px #0008;
+}
+
+.lostCitiesLobby h1 {
+  margin: 0 0 12px;
+  font-size: 44px;
+}
+
+.lostCitiesLobby input {
+  width: 100%;
+}
+
+.lostCitiesLobby button {
+  min-height: 44px;
+}
+
+.lostCitiesActions,
+.lostCitiesJoin {
+  display: flex;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.lostCitiesJoin input {
+  flex: 1;
+  min-width: 0;
+}
+
+.lostCitiesHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 14px;
+  margin-bottom: 18px;
+  border-bottom: 1px solid #5b432e;
+}
+
+.lostCitiesHeader p,
+.lostCitiesStatus {
+  margin: 0;
+  color: #bda98b;
+}
+
+.lostCitiesHeader strong {
+  color: #ffd37a;
+  font-size: 26px;
+  letter-spacing: 2px;
+}
+
+.lostCitiesLeave {
+  background: #e05a4f;
+  color: #fff;
+  box-shadow: 0 6px 0 #7c211b;
+}
+
+.lostCitiesPlayers {
+  display: grid;
+  gap: 10px;
+  margin: 22px 0;
+}
+
+.lostCitiesPlayer {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 46px;
+  padding: 10px 12px;
+  border: 1px solid #5b432e;
+  border-radius: 12px;
+  background: #2b2118;
+}
+
+.lostCitiesPlayer em {
+  margin-left: auto;
+  color: #ffd37a;
+  font-size: 13px;
+  font-style: normal;
+}
+
+.lostCitiesConnection {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #8b3831;
+}
+
+.lostCitiesConnected {
+  background: #74df82;
+  box-shadow: 0 0 8px #74df82;
+}
+
+.lostCitiesEmpty {
+  color: #bda98b;
+  border-style: dashed;
+}
+
+.lostCitiesStart {
+  width: 100%;
+}
+
+.lostCitiesError {
+  margin: 14px 0 0;
+  padding: 10px 12px;
+  border: 1px solid #aa5353;
+  border-radius: 12px;
+  color: #ffd4d4;
+  background: #5d2222;
+}
+
+@media (max-width: 520px) {
+  .lostCitiesLobby {
+    padding: 24px;
+  }
+
+  .lostCitiesLobby h1 {
+    font-size: 34px;
+  }
+
+  .lostCitiesJoin {
+    flex-direction: column;
+  }
+}
+
 .gameSelect {
   display: grid;
   gap: 14px;
@@ -1231,6 +1369,281 @@ select {
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+
+/* Lost Cities: isolated landscape board */
+.lostCitiesBoardPage {
+  min-height: 100dvh;
+  width: 100%;
+  overflow-x: hidden;
+}
+
+.lostCitiesGameShell {
+  min-height: 100dvh;
+  width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
+  padding: 6px;
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr) auto auto;
+  gap: 5px;
+  color: #fff3d7;
+  background: radial-gradient(circle at 50% 0, #5a351b, transparent 42%), #160f0a;
+}
+
+.lostCitiesBoardHeader {
+  min-height: 44px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 8px;
+  align-items: center;
+  padding: 5px 8px;
+  border: 1px solid #795937;
+  border-radius: 9px;
+  background: #241a13;
+}
+
+.lostCitiesBoardHeader > div:first-child {
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.lostCitiesBoardHeader strong { color: #ffd37a; letter-spacing: 0.08em; }
+.lostCitiesBoardHeader span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; color: #d7c4a7; }
+
+.lostCitiesTurnState {
+  min-height: 32px;
+  display: grid;
+  place-items: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #ffd37a;
+  color: #291909;
+  font-size: 13px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.lostCitiesBoardError { margin: 0; padding: 6px 10px; font-size: 13px; }
+
+.lostCitiesBoard {
+  min-height: 0;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: clamp(3px, 0.7vw, 9px);
+  align-items: stretch;
+}
+
+.lostCitiesColumn {
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) minmax(44px, 1.15fr) minmax(0, 1fr) auto;
+  gap: 3px;
+  padding: 3px;
+  border: 1px solid #6a4d2e;
+  border-radius: 8px;
+  background: #21170f;
+}
+
+.lostCitiesColumnTitle {
+  min-width: 0;
+  display: flex;
+  justify-content: space-between;
+  gap: 3px;
+  font-size: clamp(9px, 1.3vw, 13px);
+  color: #d7c4a7;
+}
+
+.lostCitiesColumnTitle span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lostCitiesColumnTitle b { color: #ffd37a; }
+.lostCitiesViewerScore { color: #fff3d7; }
+
+.lostCitiesExpedition {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.lostCitiesExpedition img {
+  width: min(32%, 52px);
+  max-height: 100%;
+  aspect-ratio: 2 / 3;
+  object-fit: cover;
+  border: 1px solid #211407;
+  border-radius: 3px;
+  box-shadow: 0 1px 3px #0009;
+}
+
+.lostCitiesExpedition img + img { margin-left: -16%; }
+
+.lostCitiesDiscard {
+  position: relative;
+  min-width: 0;
+  min-height: 44px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid #9b7544;
+  border-radius: 6px;
+  background: #120c08;
+  box-shadow: none;
+}
+
+.lostCitiesDiscard:not(:disabled) { cursor: pointer; box-shadow: 0 0 0 2px #ffd37a88; }
+.lostCitiesDiscard:disabled { opacity: 1; cursor: default; transform: none; }
+.lostCitiesDiscardField { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
+.lostCitiesDiscardCard { position: relative; z-index: 1; width: auto; height: min(82%, 86px); max-width: 88%; aspect-ratio: 2 / 3; object-fit: cover; display: block; }
+
+.lostCitiesDiscardCount {
+  position: absolute;
+  right: 3px;
+  bottom: 3px;
+  min-width: 20px;
+  min-height: 20px;
+  display: grid;
+  place-items: center;
+  padding: 1px 3px;
+  border-radius: 999px;
+  background: #201207;
+  border: 1px solid #ffe0a1;
+  color: #fff8df;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.lostCitiesControlRow {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.lostCitiesControlRow > p { margin: 0; color: #d7c4a7; font-size: 13px; }
+
+.lostCitiesControlRow button,
+.lostCitiesBoardHeader button,
+.lostCitiesResultPanel button,
+.lostCitiesRotateNotice button {
+  min-height: 44px;
+  padding: 8px 14px;
+}
+
+.lostCitiesDiscardAction { background: #93442f; }
+
+.lostCitiesDeck {
+  display: flex;
+  min-height: 44px;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 8px !important;
+  background: #3b2a1c;
+}
+
+.lostCitiesDeck img { width: 27px; height: 38px; object-fit: cover; border-radius: 3px; }
+
+.lostCitiesHand {
+  height: clamp(44px, 19dvh, 88px);
+  min-height: 44px;
+  display: grid;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  gap: clamp(2px, 0.5vw, 7px);
+  align-items: end;
+  padding: 3px;
+  border: 1px solid #6a4d2e;
+  border-radius: 8px;
+  background: #241a13;
+}
+
+.lostCitiesHandCard {
+  min-width: 0;
+  min-height: 44px;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  overflow: hidden;
+  border: 2px solid transparent;
+  border-radius: 5px;
+  background: #120c08;
+  box-shadow: none;
+}
+
+.lostCitiesHandCard:not(:disabled) { cursor: pointer; }
+.lostCitiesHandCard:disabled { opacity: 0.82; cursor: default; transform: none; }
+.lostCitiesHandCard img { width: auto; height: 100%; max-width: 100%; aspect-ratio: 2 / 3; object-fit: cover; display: block; }
+.lostCitiesHandCard.lostCitiesSelected { border-color: #ffd37a; transform: translateY(-5px); box-shadow: 0 0 0 2px #ffd37a66; }
+
+.lostCitiesResultPanel {
+  position: absolute;
+  inset: 8% 17%;
+  z-index: 3;
+  max-height: 84dvh;
+  overflow-y: auto;
+  padding: 14px;
+  border: 2px solid #ffd37a;
+  border-radius: 10px;
+  background: #21160ddd;
+  box-shadow: 0 18px 50px #000b;
+}
+
+.lostCitiesResultPanel h2 { margin: 0; color: #ffd37a; }
+.lostCitiesResultPanel > p { margin: 5px 0 10px; }
+
+.lostCitiesScoreCard {
+  margin: 8px 0;
+  padding: 8px;
+  border: 1px solid #6a4d2e;
+  border-radius: 7px;
+  background: #302319;
+}
+
+.lostCitiesScoreCard.lostCitiesWinner { border-color: #ffd37a; }
+.lostCitiesScoreCard h3 { margin: 0 0 5px; color: #fff3d7; font-size: 15px; }
+.lostCitiesScoreCard h3 b { color: #ffd37a; }
+.lostCitiesScoreCard div { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; font-size: 12px; color: #d7c4a7; }
+.lostCitiesScoreCard div > span { display: grid; gap: 2px; padding: 4px; border-radius: 4px; background: #1b130e; }
+.lostCitiesScoreCard div b { color: #ffd37a; }
+.lostCitiesScoreCard div small { font-size: 11px; }
+.lostCitiesScoreCard div strong { color: #fff3d7; }
+
+.lostCitiesRotateNotice { display: none; }
+
+@media (orientation: portrait) and (max-width: 900px) {
+  .lostCitiesGameShell { display: none; }
+  .lostCitiesRotateNotice {
+    min-height: 100dvh;
+    display: grid;
+    place-items: center;
+    padding: 24px;
+    text-align: center;
+    background: radial-gradient(circle at 50% 10%, #5a351b, transparent 45%), #160f0a;
+  }
+  .lostCitiesRotateNotice > div { max-width: 310px; }
+  .lostCitiesRotateNotice h1 { color: #ffd37a; }
+}
+
+@media (orientation: landscape), (min-width: 901px) {
+  .lostCitiesRotateNotice { display: none; }
+}
+
+@media (max-height: 470px) and (orientation: landscape) {
+  .lostCitiesGameShell { padding: 3px; gap: 3px; }
+  .lostCitiesBoardHeader { min-height: 44px; padding: 3px 6px; }
+  .lostCitiesBoardHeader button { min-height: 44px; padding: 5px 9px; }
+  .lostCitiesColumn { gap: 2px; padding: 2px; }
+  .lostCitiesDiscard { min-height: 44px; }
+  .lostCitiesControlRow { min-height: 44px; }
+  .lostCitiesControlRow button { min-height: 44px; padding: 5px 12px; }
+  .lostCitiesHand { height: clamp(44px, 19dvh, 80px); }
 }
 
 .emptySlot {

@@ -7,3 +7,5 @@ server/dist/
 .env.local
 .env.production
 .vercel
+.worktrees/
+.superpowers/
