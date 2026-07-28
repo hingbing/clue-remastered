@@ -144,3 +144,27 @@ Override the action row and discard row minima in the existing `max-height: 470p
 Run: `npm.cmd run build --prefix client`
 
 Expected: PASS with no TypeScript or Vite errors.
+
+### Task 5: Add a portrait mobile board layout
+
+**Files:**
+- Modify: `client/src/style.css:1640-1695`
+- Test: client TypeScript/Vite build
+
+- [ ] **Step 1: Replace the portrait rotation notice with the playable board**
+
+At portrait widths up to 900px, keep `.lostCitiesGameShell` visible and hide `.lostCitiesRotateNotice`.
+
+- [ ] **Step 2: Use a 3×2 field grid and 4×2 hand grid**
+
+Set `.lostCitiesBoard` to three columns and six field cards to two rows. Set `.lostCitiesHand` to four columns, two rows, content-sized height, and `2 / 3` card aspect ratios so all eight cards are fully visible without empty space.
+
+- [ ] **Step 3: Preserve desktop behavior**
+
+Keep all mobile overrides inside the portrait media query so the desktop grid remains unchanged.
+
+- [ ] **Step 4: Verify the client build**
+
+Run: `npm.cmd run build --prefix client`
+
+Expected: PASS with no TypeScript or Vite errors.

@@ -1665,17 +1665,59 @@ select {
 .lostCitiesRotateNotice { display: none; }
 
 @media (orientation: portrait) and (max-width: 900px) {
-  .lostCitiesGameShell { display: none; }
-  .lostCitiesRotateNotice {
+  .lostCitiesBoardPage { min-height: 100dvh; overflow-y: auto; }
+  .lostCitiesGameShell {
+    display: flex;
+    height: auto;
     min-height: 100dvh;
-    display: grid;
-    place-items: center;
-    padding: 24px;
-    text-align: center;
-    background: radial-gradient(circle at 50% 10%, #5a351b, transparent 45%), #160f0a;
+    padding: 4px;
+    gap: 4px;
   }
-  .lostCitiesRotateNotice > div { max-width: 310px; }
-  .lostCitiesRotateNotice h1 { color: #ffd37a; }
+  .lostCitiesRotateNotice {
+    display: none;
+  }
+
+  .lostCitiesBoardHeader { min-height: 42px; padding: 4px 6px; gap: 5px; }
+  .lostCitiesBoardHeader span { font-size: 10px; }
+  .lostCitiesBoardHeader button { min-height: 38px; padding: 6px 9px; }
+  .lostCitiesTurnState { min-height: 28px; padding: 3px 7px; font-size: 11px; }
+
+  .lostCitiesBoard {
+    flex: 0 0 auto;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 4px;
+  }
+
+  .lostCitiesColumn {
+    grid-template-rows: auto 44px 104px 44px auto;
+    gap: 2px;
+    padding: 2px;
+  }
+
+  .lostCitiesColumnTitle { font-size: 11px; }
+  .lostCitiesExpedition img { width: min(32%, 42px); }
+  .lostCitiesDiscard { min-height: 104px; }
+  .lostCitiesDiscardCard { height: calc(100% - 8px); max-height: 96px; }
+
+  .lostCitiesControlRow { flex: 0 0 48px; min-height: 48px; gap: 5px; }
+  .lostCitiesControlRow button { min-height: 42px; padding: 6px 10px; }
+  .lostCitiesDrawPrompt { font-size: 13px !important; }
+
+  .lostCitiesHand {
+    flex: 0 0 auto;
+    min-height: 0;
+    height: auto;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-rows: repeat(2, auto);
+    gap: 4px;
+    padding: 3px;
+  }
+
+  .lostCitiesHandCard {
+    height: auto;
+    min-height: 0;
+    aspect-ratio: 2 / 3;
+  }
 }
 
 @media (orientation: landscape), (min-width: 901px) {
