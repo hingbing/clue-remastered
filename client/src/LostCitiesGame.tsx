@@ -267,7 +267,7 @@ function LostCitiesGame() {
                 <div className="lostCitiesColumnTitle"><span>{opponent?.nickname ?? "상대"}</span><b>{opponentLines.find((line) => line.color === color)?.total ?? 0}</b></div>
                 <Expedition cards={opponent?.expeditions[color] ?? []} label={`${color} 상대 탐험`} />
                 <button
-                  className="lostCitiesDiscard"
+                  className={`lostCitiesDiscard ${discardAvailable ? "lostCitiesDiscardAvailable" : ""}`}
                   disabled={!discardAvailable}
                   aria-label={discard ? `${color} 버린 카드 ${room.discardCounts[color]}장` : `${color} 빈 버림 더미`}
                   onClick={() => drawDiscard(color)}
@@ -275,6 +275,7 @@ function LostCitiesGame() {
                   <img className="lostCitiesDiscardField" src={fieldImage(color)} alt="" />
                   {discard && <img className="lostCitiesDiscardCard" src={cardImage(discard)} alt="" />}
                   {discard && <span className="lostCitiesDiscardCount">{room.discardCounts[color]}</span>}
+                  {discardAvailable && <span className="lostCitiesDiscardHint">이 카드 가져오기</span>}
                 </button>
                 <Expedition cards={me?.expeditions[color] ?? []} label={`${color} 내 탐험`} />
                 <div className="lostCitiesColumnTitle lostCitiesViewerScore"><span>나</span><b>{viewerLines.find((line) => line.color === color)?.total ?? 0}</b></div>
@@ -291,10 +292,13 @@ function LostCitiesGame() {
             </>
           )}
           {isViewerTurn && room.turnPhase === "draw" && (
-            <button className="lostCitiesDeck" disabled={room.drawPileCount === 0} onClick={drawDeck}>
-              <img src="/lost-cities/card-back.png" alt="중앙 덱" />
-              <span>덱에서 뽑기 · {room.drawPileCount}</span>
-            </button>
+            <>
+              <p className="lostCitiesDrawPrompt">카드를 뽑으세요</p>
+              <button className="lostCitiesDeck" disabled={room.drawPileCount === 0} onClick={drawDeck}>
+                <img src="/lost-cities/card-back.png" alt="중앙 덱" />
+                <span>덱에서 뽑기 · {room.drawPileCount}</span>
+              </button>
+            </>
           )}
           {!isViewerTurn && !isFinished && !isAbandoned && <p>상대의 행동을 기다리는 중입니다.</p>}
         </section>
