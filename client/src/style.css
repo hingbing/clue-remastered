@@ -1500,7 +1500,7 @@ select {
 }
 
 .lostCitiesDiscard:not(:disabled) { cursor: pointer; box-shadow: 0 0 0 2px #ffd37a88; }
-.lostCitiesDiscard:disabled { opacity: 1; cursor: default; transform: none; }
+.lostCitiesDiscard:disabled { opacity: 1; cursor: default; transform: none; filter: none; }
 .lostCitiesDiscardField { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
 .lostCitiesDiscardCard { position: relative; z-index: 1; width: auto; height: calc(100% - 12px); max-width: 88%; max-height: 132px; aspect-ratio: 2 / 3; object-fit: cover; display: block; }
 
